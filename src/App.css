@@ -893,3 +893,21 @@ button {
   opacity: 0.65;
   transform: none;
 }
+
+/* Operation button state colors */
+.control-panel button.hold-button.active {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
+}
+
+.control-panel button.priority-button.active {
+  background: #facc15;
+  border-color: #eab308;
+  color: #18181b;
+}
+
+.control-panel button.hold-button.active:hover,
+.control-panel button.priority-button.active:hover {
+  filter: brightness(0.96);
+}

@@ -77,8 +77,10 @@ const SWITCH_POINTS = [
   { id: 'omiya-north-down-extra-in', label: '大宮以北 下り本線↔副本線 入口', direction: 'down', x: 64, top: 252, height: 40 },
   { id: 'omiya-north-down-extra-out', label: '大宮以北 下り本線↔副本線 出口', direction: 'down', x: 85, top: 252, height: 40 },
 ]
+const TOKYO_TERMINAL_LIMIT_X = 30
+const TOKYO_TERMINAL_DOWN_LIMIT_X = 24
 
-const INITIAL_TRAIN_COUNT = 8
+const INITIAL_TRAIN_COUNT = 6
 const WAITING_TRAIN_COUNT = 9
 
 const TRAIN_NUMBER_RULES = [
@@ -91,6 +93,12 @@ const TRAIN_NUMBER_RULES = [
   { type: 'やまびこ', start: 290, note: '仙台以南区間' },
   { type: 'なすの', start: 251, note: '標準' },
   { type: 'やまびこ・つばさ', start: 121, note: '併結' },
+  { type: 'とき', start: 300, note: '東京〜新潟' },
+  { type: 'たにがわ', start: 400, note: '東京〜越後湯沢・ガーラ湯沢' },
+  { type: 'たにがわ', start: 470, note: '東京〜高崎' },
+  { type: 'かがやき', start: 500, note: '東京〜敦賀' },
+  { type: 'はくたか', start: 550, note: '東京〜敦賀' },
+  { type: 'あさま', start: 600, note: '東京〜長野' },
 ]
 
 function randomInt(min, max) {
@@ -112,7 +120,7 @@ function makeTrainNumber(rule, direction, usedNumbers) {
   let number = first
 
   for (let attempt = 0; attempt < 30; attempt += 1) {
-    number = first + randomInt(0, 14) * 2
+    number = first + randomInt(0, 35) * 2
     const key = `${rule.type}${number}`
     if (!usedNumbers.has(key)) {
       usedNumbers.add(key)
@@ -124,12 +132,29 @@ function makeTrainNumber(rule, direction, usedNumbers) {
   return number
 }
 
+function makeWaitingTrain(rule, direction, usedNumbers, index, etaSeconds) {
+  const targetTracks = ['上り本線1', '上り本線2']
+  const trainNumber = makeTrainNumber(rule, direction, usedNumbers)
+
+  return {
+    id: `waiting-${rule.type}${trainNumber}-${index}`,
+    name: `${rule.type}${trainNumber}`,
+    direction,
+    from: '大宮方面外',
+    targetTrack: targetTracks[index % targetTracks.length],
+    status: etaSeconds > 0 ? '接近中' : '入線待ち',
+    etaSeconds,
+    eta: etaSeconds > 0 ? `約${Math.ceil(etaSeconds / 60)}分後` : '入線可能',
+    colorClass: colorClassForTrainType(rule.type),
+  }
+}
+
 function colorClassForTrainType(type) {
   if (type.includes('はやぶさ') && type.includes('こまち')) return 'train-green-red'
   if (type.includes('やまびこ') && type.includes('つばさ')) return 'train-green-purple'
   if (type.includes('こまち')) return 'train-red-silver'
   if (type.includes('つばさ')) return 'train-purple-orange'
-  if (type.includes('かがやき') || type.includes('はくたか')) return 'train-blue-gold'
+  if (type.includes('かがやき') || type.includes('はくたか') || type.includes('とき') || type.includes('たにがわ')|| type.includes('あさま')) return 'train-blue-gold'
   if (type.includes('はやぶさ') || type.includes('はやて') || type.includes('なすの')) return 'train-green-pink'
   if (type.includes('やまびこ')) return 'train-green-pink'
   return 'train-green-pink'
@@ -230,25 +255,46 @@ function generateInitialTrains(count = INITIAL_TRAIN_COUNT) {
 
 function generateWaitingTrains(count = WAITING_TRAIN_COUNT) {
   const usedNumbers = new Set()
-  const targetTracks = ['上り本線1', '上り本線2']
-  const statuses = ['入線待ち', '前走列車待ち', '進路確認中', '大宮手前で抑止中']
+  const hayabusaKomachiRule = TRAIN_NUMBER_RULES.find((item) => item.type === 'はやぶさ・こまち')
+  const yamabikoTsubasaRule = TRAIN_NUMBER_RULES.find((item) => item.type === 'やまびこ・つばさ')
+  const otherRules = TRAIN_NUMBER_RULES.filter(
+    (item) => item.type !== 'はやぶさ・こまち' && item.type !== 'やまびこ・つばさ',
+  )
+  const scheduledTrains = []
 
-  return Array.from({ length: count }, (_, index) => {
-    const rule = pickRandom(TRAIN_NUMBER_RULES.filter((item) => item.type !== 'なすの'))
-    const trainNumber = makeTrainNumber(rule, 'up', usedNumbers)
-    const etaMinutes = 2 + index * 2 + randomInt(0, 1)
+  for (let minutes = 6; scheduledTrains.length < count * 2; minutes += randomInt(4, 7)) {
+    scheduledTrains.push({
+      rule: pickRandom(otherRules),
+      etaSeconds: minutes * 60 + randomInt(0, 45),
+    })
+  }
 
-    return {
-      id: `waiting-${rule.type}${trainNumber}`,
-      name: `${rule.type}${trainNumber}`,
-      direction: 'up',
-      from: '大宮方面外',
-      targetTrack: targetTracks[index % targetTracks.length],
-      status: pickRandom(statuses),
-      eta: `約${etaMinutes}分後`,
-      colorClass: colorClassForTrainType(rule.type),
+  for (let minutes = 15; minutes <= 180; minutes += 15) {
+    if (hayabusaKomachiRule) {
+      scheduledTrains.push({ rule: hayabusaKomachiRule, etaSeconds: minutes * 60 })
     }
-  })
+  }
+
+  for (let minutes = 20; minutes <= 180; minutes += 20) {
+    if (yamabikoTsubasaRule) {
+      scheduledTrains.push({ rule: yamabikoTsubasaRule, etaSeconds: minutes * 60 })
+    }
+  }
+
+  return scheduledTrains
+    .sort((a, b) => a.etaSeconds - b.etaSeconds)
+    .slice(0, count)
+    .map((item, index) => makeWaitingTrain(item.rule, 'up', usedNumbers, index, item.etaSeconds))
+}
+
+function waitingTrainEtaLabel(train) {
+  if (!Number.isFinite(train.etaSeconds) || train.etaSeconds <= 0) return '入線可能'
+
+  const minutes = Math.floor(train.etaSeconds / 60)
+  const seconds = train.etaSeconds % 60
+
+  if (minutes <= 0) return `あと${seconds}秒`
+  return `あと${minutes}分${String(seconds).padStart(2, '0')}秒`
 }
 
 function displayTrainName(train) {
@@ -257,6 +303,58 @@ function displayTrainName(train) {
 
 function trackLabel(trackId) {
   return ROUTE_TRACKS.find((t) => t.id === trackId)?.name ?? '不明な線路'
+}
+
+// --- Helper functions for waiting trains ---
+function trackByShortName(shortName) {
+  return ROUTE_TRACKS.find((track) => track.shortName === shortName) ?? null
+}
+
+function parseWaitingTrainName(name) {
+  const match = name.match(/^(.*?)(\d+)$/)
+  return {
+    type: match?.[1] ?? name,
+    number: match ? Number(match[2]) : null,
+  }
+}
+
+function canAdmitWaitingTrain(waitingTrain, activeTrains) {
+  const targetTrack = trackByShortName(waitingTrain.targetTrack)
+  if (!targetTrack) return false
+  if ((waitingTrain.etaSeconds ?? 0) > 0) return false
+
+  return !activeTrains.some((train) => {
+    if (train.track !== targetTrack.id) return false
+    return train.x >= 82
+  })
+}
+
+function activeTrainFromWaitingTrain(waitingTrain) {
+  const targetTrack = trackByShortName(waitingTrain.targetTrack) ?? routeTrackById('up-main')
+  const parsed = parseWaitingTrainName(waitingTrain.name)
+  const assignedPlatform = pickRandom(platformsFor('omiya', 'up'))
+
+  return {
+    id: `${waitingTrain.id}-active-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    type: parsed.type,
+    number: parsed.number,
+    note: '後続列車',
+    dir: 'left',
+    direction: 'up',
+    x: 100,
+    track: targetTrack?.id ?? 'up-main',
+    assignedPlatform: assignedPlatform?.id ?? 'omiya13',
+    speed: speedForTrainType(parsed.type),
+    delay: randomInt(0, 5),
+    held: false,
+    priority: false,
+    autoHeld: false,
+    dwellRemaining: null,
+    turnbackRemaining: null,
+    colorClass: colorClassForTrainType(parsed.type),
+    plan: createTrainPlan('up', assignedPlatform),
+    stoppedStations: [],
+  }
 }
 
 function clamp(n, min, max) {
@@ -272,8 +370,7 @@ function riskLevel(trains) {
       const b = trains[j]
 
       if (a.track !== b.track) continue
-      if (isInTokyoTerminalArea(a.x) && isInTokyoTerminalArea(b.x)) continue
-
+      if (isInTokyoTerminalAreaForTrack(a.x, a.track) && isInTokyoTerminalAreaForTrack(b.x, b.track)) continue
       const gap = Math.abs(a.x - b.x)
 
       if (gap < 8) risk += 3
@@ -291,6 +388,10 @@ function stationAt(x) {
 
 function stationObjectAt(x) {
   return STATIONS.find((s) => Math.abs(x - (s.stopX ?? s.x)) < 5) ?? null
+}
+
+function stationStopX(station) {
+  return station?.stopX ?? station?.x ?? 0
 }
 
 function isFrontBlocked(train, trains) {
@@ -320,22 +421,39 @@ function isTokyoTerminalMainTrack(track) {
 }
 
 function isNearTokyoTerminal(train) {
-  const tokyo = STATIONS.find((station) => station.id === 'tokyo')
-  return Boolean(tokyo) && Math.abs(train.x - tokyo.x) <= 12
+  return isInTokyoTerminalAreaForTrack(train.x, train.track)
 }
-
 
 function isInTokyoTerminalArea(x) {
   const tokyo = STATIONS.find((station) => station.id === 'tokyo')
-  return Boolean(tokyo) && Math.abs(x - tokyo.x) <= 8
+  if (!tokyo) return false
+
+  const leftEdge = tokyo.x - 4
+  return x >= leftEdge && x <= TOKYO_TERMINAL_LIMIT_X
+}
+function isDownMainTrack(trackOrTrackId) {
+  const track = typeof trackOrTrackId === 'string' ? routeTrackById(trackOrTrackId) : trackOrTrackId
+  return track?.direction === 'down'
+}
+
+function isInTokyoTerminalAreaForTrack(x, trackOrTrackId) {
+  const tokyo = STATIONS.find((station) => station.id === 'tokyo')
+  if (!tokyo) return false
+
+  const leftEdge = tokyo.x - 4
+  const rightEdge = isDownMainTrack(trackOrTrackId)
+    ? TOKYO_TERMINAL_DOWN_LIMIT_X
+    : TOKYO_TERMINAL_LIMIT_X
+
+  return x >= leftEdge && x <= rightEdge
 }
 
 function isTokyoTerminalTrackOccupied(trackId, x, trains, ignoreTrainId = null) {
-  if (!isInTokyoTerminalArea(x)) return false
+  if (!isInTokyoTerminalAreaForTrack(x, trackId)) return false
 
   return trains.some((train) => {
     if (train.id === ignoreTrainId) return false
-    return train.track === trackId && isInTokyoTerminalArea(train.x)
+    return train.track === trackId && isInTokyoTerminalAreaForTrack(train.x, train.track)
   })
 }
 
@@ -354,11 +472,85 @@ function canUseTrack(train, targetTrack) {
 }
 
 function needsTokyoTerminalTransfer(train, currentStation, currentTrack) {
-  return (
-    train.direction === 'up' &&
-    currentStation?.id === 'tokyo' &&
-    currentTrack?.direction === 'up'
-  )
+  // 上り列車は東京駅の上り本線へ例外的に到着できる。
+  // 到着後はその線内で折返し準備を行い、折返し下り列車として分岐器まで進んでから抑止する。
+  // そのため、上り列車そのものは東京駅構内で自動抑止しない。
+  return false
+}
+
+function firstOddNumber(number) {
+  return number % 2 === 1 ? number : number + 1
+}
+
+function turnbackTypeFor(train) {
+  const keepSameTypes = ['はやぶさ・こまち', 'やまびこ・つばさ', 'はくたか', 'かがやき', 'とき']
+
+  if (keepSameTypes.some((type) => train.type.includes(type))) {
+    return train.type
+  }
+
+  if (train.type.includes('なすの')) return 'なすの'
+  if (train.type.includes('やまびこ')) return 'やまびこ'
+  if (train.type.includes('はやぶさ')) return 'はやぶさ'
+
+  return pickRandom(['なすの', 'やまびこ', 'はやぶさ'])
+}
+
+function turnbackAtTokyo(train, currentTrack) {
+  const tokyo = STATIONS.find((station) => station.id === 'tokyo')
+  const tokyoPlatform = pickRandom(platformsFor('tokyo', 'down'))
+  const type = turnbackTypeFor(train)
+  const number = firstOddNumber(train.number ?? 1)
+  const arrivalTrack = currentTrack ?? routeTrackById(train.track)
+  const needsDownTransfer = arrivalTrack?.direction === 'up'
+
+  return {
+    id: `${type}${number}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    type,
+    number,
+    note: '東京折返し',
+    direction: 'down',
+    dir: 'right',
+    x: tokyo?.stopX ?? tokyo?.x ?? train.x,
+    track: arrivalTrack?.id ?? train.track,
+    assignedPlatform: tokyoPlatform?.id ?? train.assignedPlatform,
+    speed: speedForTrainType(type),
+    delay: train.delay,
+    colorClass: colorClassForTrainType(type),
+    plan: createTrainPlan('down', tokyoPlatform),
+    stoppedStations: ['tokyo'],
+    dwellRemaining: 30,
+    autoHeld: false,
+    held: false,
+    priority: false,
+    turnbackRemaining: null,
+    awaitingTokyoDownTransfer: needsDownTransfer,
+    originalUpTrainId: train.id,
+    originalArrivalTrack: train.arrivalTrack ?? train.track,
+  }
+}
+
+function switchXsForTrack(targetTrack, train = null) {
+  if (!targetTrack) return []
+
+  const currentTrack = train ? routeTrackById(train.track) : null
+  const isOmiyaSideTrack = targetTrack.id.includes('omiya') || currentTrack?.id.includes('omiya')
+
+  if (isOmiyaSideTrack) return [64, 85]
+  if (isTokyoTerminalMainTrack(targetTrack)) return [28, 50]
+  return []
+}
+
+function canChangeTrackAtCurrentPosition(train, targetTrack) {
+  if (!train || !targetTrack) return false
+  if (train.track === targetTrack.id) return true
+
+  const currentTrack = routeTrackById(train.track)
+  const isOmiyaSideTrack = targetTrack.id.includes('omiya') || currentTrack?.id.includes('omiya')
+  const switchXs = switchXsForTrack(targetTrack, train)
+  const tolerance = isOmiyaSideTrack ? 18 : 10
+
+  return switchXs.some((x) => Math.abs(train.x - x) <= tolerance)
 }
 
 function isAtLimitedTrackEnd(train, track) {
@@ -367,9 +559,18 @@ function isAtLimitedTrackEnd(train, track) {
   return train.x <= track.startX
 }
 
+
 function clampToTrackRange(x, track) {
   if (!isLimitedTrack(track)) return clamp(x, 0, 100)
   return clamp(x, track.startX, track.endX)
+}
+
+// --- Helper: Main track for Omiya extra track ---
+function mainTrackForExtraTrack(track) {
+  if (!track?.id?.includes('omiya')) return null
+  if (track.direction === 'up') return routeTrackById('up-sub')
+  if (track.direction === 'down') return routeTrackById('down-sub')
+  return null
 }
 
 function platformLabel(platformId) {
@@ -403,14 +604,70 @@ function nextTrainState(train, allTrains) {
   const currentStation = stationObjectAt(train.x)
   const currentTrack = routeTrackById(train.track)
 
+  // --- Tokyo up-arrival turnback logic ---
+  if (train.direction === 'up' && currentStation?.id === 'tokyo') {
+    const stopX = stationStopX(currentStation)
+    const turnbackRemaining = train.turnbackRemaining ?? 10
+    const arrivalTrack = train.arrivalTrack ?? train.track
+
+    if (turnbackRemaining > 0) {
+      return {
+        ...train,
+        x: stopX,
+        arrivalTrack,
+        turnbackRemaining: turnbackRemaining - 1,
+        dwellRemaining: null,
+        autoHeld: false,
+        held: false,
+      }
+    }
+
+    return turnbackAtTokyo({ ...train, arrivalTrack }, currentTrack)
+  }
+
+  // --- Tokyo turnback train waiting to transfer from up-side track to down-side track ---
+  if (train.direction === 'down' && train.awaitingTokyoDownTransfer) {
+    const tokyo = STATIONS.find((station) => station.id === 'tokyo')
+    const tokyoStopX = tokyo?.stopX ?? tokyo?.x ?? train.x
+    const remaining = train.dwellRemaining ?? 30
+
+    if (remaining > 0) {
+      return {
+        ...train,
+        x: tokyoStopX,
+        dwellRemaining: remaining - 1,
+        autoHeld: false,
+      }
+    }
+
+    if (currentTrack?.direction === 'down') {
+      return {
+        ...train,
+        awaitingTokyoDownTransfer: false,
+        autoHeld: false,
+      }
+    }
+
+    const tokyoSwitchX = 28
+    if (train.x >= tokyoSwitchX - 1) {
+      return {
+        ...train,
+        x: tokyoSwitchX,
+        autoHeld: true,
+        delay: Number((ndelay + 0.02).toFixed(1)),
+      }
+    }
+  }
+
   // Insert Tokyo terminal transfer logic
-  if (needsTokyoTerminalTransfer(train, currentStation, currentTrack)) {
+  if (needsTokyoTerminalTransfer(train, currentStation, currentTrack) && train.turnbackRemaining == null) {
     return {
       ...train,
       autoHeld: true,
       delay: Number((ndelay + 0.02).toFixed(1)),
     }
   }
+
 
   if (train.held) {
     return {
@@ -421,6 +678,20 @@ function nextTrainState(train, allTrains) {
   }
 
   if (isAtLimitedTrackEnd(train, currentTrack)) {
+    const mainTrack = mainTrackForExtraTrack(currentTrack)
+    const mergeCandidate = mainTrack
+      ? {
+          ...train,
+          x: clampToTrackRange(train.x, currentTrack),
+          track: mainTrack.id,
+          autoHeld: false,
+        }
+      : null
+
+    if (mergeCandidate && !isFrontBlocked(mergeCandidate, allTrains)) {
+      return mergeCandidate
+    }
+
     return {
       ...train,
       x: clampToTrackRange(train.x, currentTrack),
@@ -430,11 +701,13 @@ function nextTrainState(train, allTrains) {
   }
 
   if (currentStation && !stoppedStations.includes(currentStation.id)) {
+    const stopX = stationStopX(currentStation)
     const remaining = train.dwellRemaining ?? 30
 
     if (remaining > 0) {
       return {
         ...train,
+        x: stopX,
         dwellRemaining: remaining - 1,
         autoHeld: false,
       }
@@ -443,6 +716,7 @@ function nextTrainState(train, allTrains) {
     if (isFrontBlocked(train, allTrains)) {
       return {
         ...train,
+        x: stopX,
         autoHeld: true,
         delay: Number((ndelay + 0.02).toFixed(1)),
       }
@@ -450,6 +724,7 @@ function nextTrainState(train, allTrains) {
 
     return {
       ...train,
+      x: stopX,
       dwellRemaining: null,
       autoHeld: false,
       stoppedStations: [...stoppedStations, currentStation.id],
@@ -464,23 +739,29 @@ function nextTrainState(train, allTrains) {
     }
   }
 
-  nx += train.dir === 'right' ? train.speed : -train.speed
-  nx = clampToTrackRange(nx, currentTrack)
-  if (Math.random() < 0.02) {
-    ndelay = Math.max(0, ndelay - 0.1)
+  const rawNextX = train.x + (train.dir === 'right' ? train.speed : -train.speed)
+
+  if (train.direction === 'down' && rawNextX > 100) {
+    return null
   }
 
-  if (nx > 100 || nx < 0) {
-    nx = train.dir === 'right' ? 0 : 100
-    ndelay = Math.max(0, ndelay - 1.5)
+  if (train.direction === 'up' && rawNextX < 0) {
+    if (currentTrack?.direction === 'down') {
+      return turnbackAtTokyo(train, currentTrack)
+    }
+
     return {
       ...train,
-      x: clamp(nx, 0, 100),
-      delay: Number(ndelay.toFixed(1)),
-      stoppedStations: [],
-      dwellRemaining: null,
-      autoHeld: false,
+      x: STATIONS.find((station) => station.id === 'tokyo')?.stopX ?? 0,
+      autoHeld: true,
+      delay: Number((ndelay + 0.02).toFixed(1)),
     }
+  }
+
+  nx = clampToTrackRange(rawNextX, currentTrack)
+
+  if (Math.random() < 0.02) {
+    ndelay = Math.max(0, ndelay - 0.1)
   }
 
   return {
@@ -525,7 +806,35 @@ export default function App() {
       setTime((v) => v + 1)
 
       setTrains((prev) => {
-        const next = prev.map((train) => nextTrainState(train, prev))
+        const next = prev
+          .map((train) => nextTrainState(train, prev))
+          .filter(Boolean)
+
+        setWaitingTrains((waitingPrev) => {
+          const updatedWaitingTrains = waitingPrev.map((waitingTrain) => {
+            const nextEtaSeconds = Math.max(0, (waitingTrain.etaSeconds ?? 0) - 1)
+            return {
+              ...waitingTrain,
+              etaSeconds: nextEtaSeconds,
+              status: nextEtaSeconds > 0 ? '接近中' : '入線待ち',
+              eta: nextEtaSeconds > 0 ? `約${Math.ceil(nextEtaSeconds / 60)}分後` : '入線可能',
+            }
+          })
+
+          const admitIndex = updatedWaitingTrains.findIndex((waitingTrain) =>
+            canAdmitWaitingTrain(waitingTrain, next),
+          )
+
+          if (admitIndex === -1) return updatedWaitingTrains
+
+          const admittedWaitingTrain = updatedWaitingTrains[admitIndex]
+          const admittedTrain = activeTrainFromWaitingTrain(admittedWaitingTrain)
+          next.push(admittedTrain)
+          addEvent(`${formattedTime} ${admittedWaitingTrain.name}: 大宮方面から入線`)
+
+          return updatedWaitingTrains.filter((_, index) => index !== admitIndex)
+        })
+
         const nextRisk = riskLevel(next)
         const nextTotalDelay = next.reduce((sum, t) => sum + t.delay, 0)
 
@@ -612,6 +921,18 @@ export default function App() {
   return
 }
 
+if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
+  const switchList = switchXsForTrack(targetTrack, targetTrain).join(' / ')
+  const warning = switchList
+    ? `${id}は現在、分岐点付近にいません。${trackName}へ転線できる位置は x=${switchList} 付近です。`
+    : `${id}は現在、分岐点付近にいないため、${trackName}へ転線できません。`
+
+  setMessage(warning)
+  setOperationWarning(id, warning)
+  addEvent(`${formattedTime} ${id}: 分岐点外での転線を防止`)
+  return
+}
+
     if (targetTrain && targetTrack && !canUseTrack(targetTrain, targetTrack)) {
       const directionLabel = targetTrain.direction === 'up' ? '上り' : '下り'
       const warning =
@@ -626,14 +947,14 @@ export default function App() {
     }
 
     if (targetTrack?.id.includes('omiya') && targetTrain) {
-     const nearOmiyaExtraSwitch = [64, 85].some((x) => Math.abs(targetTrain.x - x) <= 12)
+      const nearOmiyaExtraSwitch = [64, 85].some((x) => Math.abs(targetTrain.x - x) <= 18)
 
       if (!nearOmiyaExtraSwitch) {
         const warning = `${id}は大宮以北の分岐点付近にいないため、${trackName}へ進路を構成できません。`
-setMessage(warning)
-setOperationWarning(id, warning)
-addEvent(`${formattedTime} ${id}: 大宮副本線への進路構成不可`)
-return
+        setMessage(warning)
+        setOperationWarning(id, warning)
+        addEvent(`${formattedTime} ${id}: 大宮副本線への進路構成不可`)
+        return
       }
     }
 
@@ -646,31 +967,59 @@ return
 
     window.setTimeout(() => {
       setTrains((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, track } : t)),
+        prev.map((t) =>
+          t.id === id
+            ? {
+                ...t,
+                track,
+                arrivalTrack:
+                  t.direction === 'up' && isInTokyoTerminalAreaForTrack(t.x, routeTrackById(t.track))
+                    ? t.arrivalTrack ?? t.track
+                    : t.arrivalTrack,
+                awaitingTokyoDownTransfer:
+                  t.awaitingTokyoDownTransfer && routeTrackById(track)?.direction === 'down'
+                    ? false
+                    : t.awaitingTokyoDownTransfer,
+              }
+            : t,
+        ),
       )
       setPointsLocked(false)
     }, 900)
   }
 
   const priorityBoost = (id) => {
-    setTrains((prev) =>
-      prev.map((t) =>
-        t.id === id
-          ? {
-              ...t,
-              delay: Math.max(0, Number((t.delay - 1.2).toFixed(1))),
-              speed: Number(Math.min(t.speed + 0.03, 0.62).toFixed(2)),
-            }
-          : t,
-      ),
-    )
+  const target = trains.find((t) => t.id === id)
+  const willPrioritize = !target?.priority
 
+  setTrains((prev) =>
+    prev.map((t) =>
+      t.id === id
+        ? {
+            ...t,
+            priority: willPrioritize,
+            delay: willPrioritize
+              ? Math.max(0, Number((t.delay - 1.2).toFixed(1)))
+              : t.delay,
+            speed: willPrioritize
+              ? Number(Math.min(t.speed + 0.03, 0.62).toFixed(2))
+              : Number(Math.max(t.speed - 0.03, 0.3).toFixed(2)),
+          }
+        : t,
+    ),
+  )
+
+  if (willPrioritize) {
     setScore((s) => Math.max(0, s - 30))
     setMessage(
       `${id}に優先通過を設定しました。他列車へのしわ寄せに注意しましょう。`,
     )
     addEvent(`${formattedTime} ${id}: 優先通過設定`)
+  } else {
+    setMessage(`${id}の優先通過を解除しました。`)
+    addEvent(`${formattedTime} ${id}: 優先通過解除`)
   }
+}
 
   const resetGame = () => {
     setTrains(generateInitialTrains())
@@ -716,7 +1065,7 @@ return
     )}
       <header className="game-header">
         <div>
-          <p className="version">Train Dispatch Simulator v1.0</p>
+          <p className="version">JRE Shinkansen Dispatch Simulator v1.1</p>
           <h1>JR東日本 新幹線 遅延回復
             シミュレーター</h1>
           <p className="lead">
@@ -825,7 +1174,7 @@ return
                   <div className={`train ${train.colorClass}`}>
                     <div className="train-top compact">
                       <strong>
-                        {displayTrainName(train)} / {train.direction === 'up' ? '上り' : '下り'} / {train.dwellRemaining > 0 ? `停車${train.dwellRemaining}s` : train.autoHeld ? '進路待ち' : `+${train.delay.toFixed(1)}分`}
+                      {displayTrainName(train)} / {train.direction === 'up' ? '上り' : '下り'} / {train.turnbackRemaining > 0 ? `折返し準備${train.turnbackRemaining}s` : train.dwellRemaining > 0 ? `停車${train.dwellRemaining}s` : train.autoHeld ? '進路待ち' : `+${train.delay.toFixed(1)}分`}
                       </strong>
                       {(train.held || train.autoHeld) && <span className="hold-mark">×</span>}
 {!train.held && !train.autoHeld && train.dwellRemaining > 0 && <span>⏸</span>}
@@ -852,7 +1201,7 @@ return
                 <div className="waiting-train-card" key={train.id}>
                   <strong>{train.name}</strong>
                   <span>{train.direction === 'up' ? '上り' : '下り'} / {train.targetTrack}</span>
-                  <p>{train.status}・{train.eta}</p>
+                  <p>{train.status}・{waitingTrainEtaLabel(train)}</p>
                 </div>
               ))}
             </div>
@@ -871,7 +1220,7 @@ return
                   <div>
                     <strong>{displayTrainName(train)}</strong>
                     {(train.held || train.autoHeld) && <b className="control-hold-mark">× 抑止</b>}
-                    <span>{train.direction === 'up' ? '上り' : '下り'} / +{train.delay.toFixed(1)}分 / {train.dwellRemaining > 0 ? `停車中 ${train.dwellRemaining}s` : train.autoHeld ? '進路待ち・自動抑止' : '走行可'}</span>
+                    <span>{train.direction === 'up' ? '上り' : '下り'} / +{train.delay.toFixed(1)}分 / {train.turnbackRemaining > 0 ? `折返し準備中 ${train.turnbackRemaining}s` : train.dwellRemaining > 0 ? `停車中 ${train.dwellRemaining}s` : train.autoHeld ? '進路待ち・自動抑止' : '走行可'}</span>
                     <p className="route-plan">{train.plan}</p>
                     <p className="compact-info">現在進路: {trackLabel(train.track)}</p>
                     <p className="compact-info">指定番線: {platformLabel(train.assignedPlatform)}</p>
@@ -894,11 +1243,19 @@ return
                 </div>
 
                 <div className="action-buttons">
-                  <button onClick={() => toggleHold(train.id)}>
-                    {train.held ? '⏸ 解除' : '⏸ 抑止'}
-                  </button>
-                  <button onClick={() => priorityBoost(train.id)}>⚡ 優先</button>
-                </div>
+  <button
+    className={train.held ? 'hold-button active' : 'hold-button'}
+    onClick={() => toggleHold(train.id)}
+  >
+    {train.held ? '⏸ 解除' : '⏸ 抑止'}
+  </button>
+  <button
+    className={train.priority ? 'priority-button active' : 'priority-button'}
+    onClick={() => priorityBoost(train.id)}
+  >
+    {train.priority ? '⚡ 優先解除' : '⚡ 優先'}
+  </button>
+</div>
               </div>
             ))}
           </div>
