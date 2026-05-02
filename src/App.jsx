@@ -716,7 +716,7 @@ return
     )}
       <header className="game-header">
         <div>
-          <p className="version">Train Dispatch Simulator v0.30beta</p>
+          <p className="version">Train Dispatch Simulator v1.0</p>
           <h1>JR東日本 新幹線 遅延回復
             シミュレーター</h1>
           <p className="lead">
