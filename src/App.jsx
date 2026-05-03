@@ -776,6 +776,7 @@ function nextTrainState(train, allTrains) {
 export default function App() {
   const [trains, setTrains] = useState(() => generateInitialTrains())
   const [waitingTrains, setWaitingTrains] = useState(() => generateWaitingTrains())
+  const [selectedTrainId, setSelectedTrainId] = useState(null)
   const [running, setRunning] = useState(false)
   const [gameOver, setGameOver] = useState(false)
   const [time, setTime] = useState(15 * 3600 + 23 * 60)
@@ -800,8 +801,8 @@ export default function App() {
     '0',
   )}:${String(Math.floor((time % 3600) / 60)).padStart(2, '0')}:${String(time % 60).padStart(2, '0')}`
 
- useEffect(() => {
-  if (!running || gameOver) return undefined
+  useEffect(() => {
+    if (!running || gameOver) return undefined
 
     const intervalId = window.setInterval(() => {
       setTime((v) => v + 1)
@@ -840,26 +841,26 @@ export default function App() {
         const nextTotalDelay = next.reduce((sum, t) => sum + t.delay, 0)
 
         if (nextRisk >= 13) {
-  setRunning(false)
-  setGameOver(true)
-  setScore(0)
-  setMessage(
-    '列車事故発生。防護無線発報中。全列車の運転を停止します。',
-  )
-  addEvent(`${formattedTime} 列車事故発生: 安全リスク13到達`)
-} else if (nextRisk >= 10) {
-  setScore((s) => Math.max(0, s - 40))
-  setMessage(
-    '危険警告。安全リスクが10以上です。閉塞間隔が非常に詰まっています。直ちに抑止または転線を行ってください。',
-  )
-} else if (nextRisk >= 3) {
-  setScore((s) => Math.max(0, s - 25))
-  setMessage(
-    '接近警報。閉塞間隔が詰まっています。抑止か待避線への転線を検討してください。',
-  )
-} else {
-  setScore((s) => Math.max(0, s - Math.ceil(nextTotalDelay / 8)))
-}
+          setRunning(false)
+          setGameOver(true)
+          setScore(0)
+          setMessage(
+            '列車事故発生。防護無線発報中。全列車の運転を停止します。',
+          )
+          addEvent(`${formattedTime} 列車事故発生: 安全リスク13到達`)
+        } else if (nextRisk >= 10) {
+          setScore((s) => Math.max(0, s - 40))
+          setMessage(
+            '危険警告。安全リスクが10以上です。閉塞間隔が非常に詰まっています。直ちに抑止または転線を行ってください。',
+          )
+        } else if (nextRisk >= 3) {
+          setScore((s) => Math.max(0, s - 25))
+          setMessage(
+            '接近警報。閉塞間隔が詰まっています。抑止か待避線への転線を検討してください。',
+          )
+        } else {
+          setScore((s) => Math.max(0, s - Math.ceil(nextTotalDelay / 8)))
+        }
 
         return next
       })
@@ -868,16 +869,27 @@ export default function App() {
     return () => window.clearInterval(intervalId)
   }, [running, gameOver, formattedTime])
 
+  useEffect(() => {
+    if (trains.length === 0) {
+      setSelectedTrainId(null)
+      return
+    }
+
+    if (!selectedTrainId || !trains.some((train) => train.id === selectedTrainId)) {
+      setSelectedTrainId(trains[0].id)
+    }
+  }, [trains, selectedTrainId])
+
   const addEvent = (text) => {
     setEvents((prev) => [text, ...prev].slice(0, 6))
   }
 
   const setOperationWarning = (trainId, text) => {
-  setOperationWarnings((prev) => ({
-    ...prev,
-    [trainId]: text,
-  }))
-}
+    setOperationWarnings((prev) => ({
+      ...prev,
+      [trainId]: text,
+    }))
+  }
 
   const toggleHold = (id) => {
     const target = trains.find((t) => t.id === id)
@@ -1025,6 +1037,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
   const resetGame = () => {
     setTrains(generateInitialTrains())
     setWaitingTrains(generateWaitingTrains())
+    setSelectedTrainId(null)
     setRunning(false)
     setGameOver(false)
     setTime(15 * 3600 + 23 * 60)
@@ -1066,7 +1079,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     )}
       <header className="game-header">
         <div>
-          <p className="version">JRE Shinkansen Dispatch Simulator v1.1.1</p>
+          <p className="version">JRE Shinkansen Dispatch Simulator v1.1.2</p>
           <h1>JR東日本 新幹線 遅延回復
             シミュレーター</h1>
           <p className="lead">
@@ -1210,13 +1223,31 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
         </div>
 
         <aside className="control-panel">
-          <h2>⇄ 指令操作盤</h2>
+  <h2>⇄ 指令操作盤</h2>
 
-          {pointsLocked && <p className="point-lock">ポイント転換中……</p>}
+  <div className="mobile-train-selector" aria-label="操作する列車を選択">
+    <label htmlFor="mobile-train-select">操作する列車</label>
+    <select
+      id="mobile-train-select"
+      value={selectedTrainId ?? ''}
+      onChange={(event) => setSelectedTrainId(event.target.value)}
+    >
+      {trains.map((train) => (
+        <option value={train.id} key={train.id}>
+          {displayTrainName(train)} / {train.direction === 'up' ? '上り' : '下り'} / +{train.delay.toFixed(1)}分
+        </option>
+      ))}
+    </select>
+  </div>
+
+  {pointsLocked && <p className="point-lock">ポイント転換中……</p>}
 
           <div className="train-controls">
             {trains.map((train) => (
-              <div className="train-control-card" key={train.id}>
+              <div
+  className={`train-control-card ${selectedTrainId === train.id ? 'mobile-selected' : ''}`}
+  key={train.id}
+>
                 <div className="train-control-head">
                   <div>
                     <strong>{displayTrainName(train)}</strong>
@@ -1273,7 +1304,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
       </section>
 
       <p className="help">
-        遊び方: 全列車は東京・上野・大宮で30秒停車します。停車時間をうまく計算しながら列車のに指示を出しましょう。
+        遊び方: 全列車は東京・上野・大宮で30秒停車します。停車時間をうまく計算しながら列車に指示を出しましょう。
         停車後、前方が詰まっていなければ自動で発車し、前方が詰まっている場合は自動で抑止されます。
         適切な進路を構成しながら遅延回復を目指してください。
       </p>
