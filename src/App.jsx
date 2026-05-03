@@ -84,6 +84,28 @@ const TOKYO_TERMINAL_DOWN_LIMIT_X = 24
 const INITIAL_TRAIN_COUNT = 11
 const WAITING_TRAIN_COUNT = 9
 let tokyoTurnbacksSinceLastDeadhead = 0
+const TUTORIAL_STEPS = [
+  {
+    title: 'このゲームの目的',
+    body: '遅延を回復しながら、安全リスクを上げすぎないように列車を整理しましょう。',
+  },
+  {
+    title: '運行表示板',
+    body: '列車の位置・方向・状態を確認できます。列車をクリックまたはタップすると指令操作盤が開きます。',
+  },
+  {
+    title: '指令操作盤',
+    body: '進路を構成し、必要に応じて抑止や優先を使います。進路を変える場合は、分岐点付近で操作する必要があります。',
+  },
+  {
+    title: '後続列車',
+    body: '後続列車一覧を開くと、これから大宮方面から入線する列車を確認できます。',
+  },
+  {
+    title: '安全リスク',
+    body: '列車同士が近づきすぎると安全リスクが上がります。安全リスクが13に達するとゲームオーバーです。',
+  },
+]
 
 const TRAIN_NUMBER_RULES = [
   { type: 'はやぶさ', start: 1, note: '標準' },
@@ -865,6 +887,11 @@ export default function App() {
   const [message, setMessage] = useState(
     '車両トラブルにより遅延が発生しています。上り・下りの本線/副本線を使い分け、遅延回復を目指しましょう。',
   )
+  const [tutorialOpen, setTutorialOpen] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return window.localStorage.getItem('tutorialSeen') !== 'true'
+  })
+  const [tutorialStep, setTutorialStep] = useState(0)
   const [operationWarnings, setOperationWarnings] = useState({})
   const [score, setScore] = useState(1000)
   const [events, setEvents] = useState([
@@ -904,10 +931,26 @@ export default function App() {
     }
   }, [selectedTrainGroup, trains])
   const selectedWaitingTrainDetails = useMemo(() => {
-  if (!selectedWaitingTrain) return null
+    if (!selectedWaitingTrain) return null
 
-  return waitingTrains.find((train) => train.id === selectedWaitingTrain.id) ?? selectedWaitingTrain
-}, [selectedWaitingTrain, waitingTrains])
+    return waitingTrains.find((train) => train.id === selectedWaitingTrain.id) ?? selectedWaitingTrain
+  }, [selectedWaitingTrain, waitingTrains])
+
+  const currentTutorialStep = TUTORIAL_STEPS[tutorialStep] ?? TUTORIAL_STEPS[0]
+  const isLastTutorialStep = tutorialStep === TUTORIAL_STEPS.length - 1
+
+  const closeTutorial = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('tutorialSeen', 'true')
+    }
+    setTutorialOpen(false)
+    setTutorialStep(0)
+  }
+
+  const openTutorial = () => {
+    setTutorialStep(0)
+    setTutorialOpen(true)
+  }
 
   const formattedTime = `${String(Math.floor(time / 3600)).padStart(
     2,
@@ -1223,6 +1266,55 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
 
   return (
   <main className="game">
+    {tutorialOpen && (
+  <div className="tutorial-overlay" role="dialog" aria-label="チュートリアル">
+    <div className="tutorial-card">
+      <div className="tutorial-head">
+        <span>STEP {tutorialStep + 1} / {TUTORIAL_STEPS.length}</span>
+        <button type="button" aria-label="チュートリアルを閉じる" onClick={closeTutorial}>×</button>
+      </div>
+
+      <div className="tutorial-body">
+        <strong>{currentTutorialStep.title}</strong>
+        <p>{currentTutorialStep.body}</p>
+      </div>
+
+      <div className="tutorial-progress" aria-hidden="true">
+        {TUTORIAL_STEPS.map((step, index) => (
+          <span className={index === tutorialStep ? 'active' : ''} key={step.title} />
+        ))}
+      </div>
+
+      <div className="tutorial-actions">
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => setTutorialStep((step) => Math.max(0, step - 1))}
+          disabled={tutorialStep === 0}
+        >
+          戻る
+        </button>
+        <button type="button" className="secondary-button" onClick={closeTutorial}>
+          スキップ
+        </button>
+        <button
+          type="button"
+          className="primary-button"
+          onClick={() => {
+            if (isLastTutorialStep) {
+              closeTutorial()
+              return
+            }
+            setTutorialStep((step) => Math.min(TUTORIAL_STEPS.length - 1, step + 1))
+          }}
+        >
+          {isLastTutorialStep ? 'はじめる' : '次へ'}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
     {gameOver && (
       <div className="game-over-overlay" role="alert">
         <div className="game-over-card">
@@ -1249,6 +1341,9 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
           </p>
         </div>
 
+          <button className="tutorial-open-button" type="button" onClick={openTutorial}>
+             遊び方
+          </button>
       </header>
 
       <section className="stats">
