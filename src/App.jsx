@@ -72,10 +72,10 @@ const SWITCH_POINTS = [
   { id: 'ueno-omiya-up', label: '上野〜大宮 上り渡り', direction: 'up', x: 50, top: 72, height: 40 },
   { id: 'ueno-omiya-down', label: '上野〜大宮 下り渡り', direction: 'down', x: 50, top: 204, height: 48 },
 
- { id: 'omiya-north-up-extra-in', label: '大宮以北 上り本線↔副本線 入口', direction: 'up', x: 64, top: 72, height: 80 },
-{ id: 'omiya-north-up-extra-out', label: '大宮以北 上り本線↔副本線 出口', direction: 'up', x: 85, top: 72, height: 80 },
-{ id: 'omiya-north-down-extra-in', label: '大宮以北 下り本線↔副本線 入口', direction: 'down', x: 64, top: 204, height: 88 },
-{ id: 'omiya-north-down-extra-out', label: '大宮以北 下り本線↔副本線 出口', direction: 'down', x: 85, top: 204, height: 88 },
+  { id: 'omiya-north-up-extra-in', label: '大宮以北 上り本線↔副本線 入口', direction: 'up', x: 64, top: 72, height: 80 },
+  { id: 'omiya-north-up-extra-out', label: '大宮以北 上り本線↔副本線 出口', direction: 'up', x: 85, top: 72, height: 80 },
+  { id: 'omiya-north-down-extra-in', label: '大宮以北 下り本線↔副本線 入口', direction: 'down', x: 64, top: 204, height: 88 },
+  { id: 'omiya-north-down-extra-out', label: '大宮以北 下り本線↔副本線 出口', direction: 'down', x: 85, top: 204, height: 88 },
 ]
 
 const TOKYO_TERMINAL_LIMIT_X = 30
@@ -155,7 +155,7 @@ function colorClassForTrainType(type) {
   if (type.includes('やまびこ') && type.includes('つばさ')) return 'train-green-purple'
   if (type.includes('こまち')) return 'train-red-silver'
   if (type.includes('つばさ')) return 'train-purple-orange'
-  if (type.includes('かがやき') || type.includes('はくたか') || type.includes('とき') || type.includes('たにがわ')|| type.includes('あさま')) return 'train-blue-gold'
+  if (type.includes('かがやき') || type.includes('はくたか') || type.includes('とき') || type.includes('たにがわ') || type.includes('あさま')) return 'train-blue-gold'
   if (type.includes('はやぶさ') || type.includes('はやて') || type.includes('なすの')) return 'train-green-pink'
   if (type.includes('やまびこ')) return 'train-green-pink'
   return 'train-green-pink'
@@ -584,19 +584,6 @@ function platformLabel(platformId) {
   return '番線未設定'
 }
 
-function stationPlatformsForDirection(station, direction) {
-  return station.tracks.filter((track) => track.direction === direction)
-}
-
-function platformSummary(station) {
-  const up = stationPlatformsForDirection(station, 'up').map((track) => track.number).join('/')
-  const down = stationPlatformsForDirection(station, 'down').map((track) => track.number).join('/')
-
-  if (up && down) return `上り ${up} / 下り ${down}`
-  if (up) return `上り ${up}`
-  if (down) return `下り ${down}`
-  return '番線未設定'
-}
 
 function nextTrainState(train, allTrains) {
   let nx = train.x
@@ -679,27 +666,27 @@ function nextTrainState(train, allTrains) {
   }
 
   if (isAtLimitedTrackEnd(train, currentTrack)) {
-  const mainTracks = mainTracksForExtraTrack(currentTrack)
-  const mergeCandidate = mainTracks
-    .map((mainTrack) => ({
+    const mainTracks = mainTracksForExtraTrack(currentTrack)
+    const mergeCandidate = mainTracks
+      .map((mainTrack) => ({
+        ...train,
+        x: clampToTrackRange(train.x, currentTrack),
+        track: mainTrack.id,
+        autoHeld: false,
+      }))
+      .find((candidate) => !isFrontBlocked(candidate, allTrains))
+
+    if (mergeCandidate) {
+      return mergeCandidate
+    }
+
+    return {
       ...train,
       x: clampToTrackRange(train.x, currentTrack),
-      track: mainTrack.id,
-      autoHeld: false,
-    }))
-    .find((candidate) => !isFrontBlocked(candidate, allTrains))
-
-  if (mergeCandidate) {
-    return mergeCandidate
+      autoHeld: true,
+      delay: Number((ndelay + 0.02).toFixed(1)),
+    }
   }
-
-  return {
-    ...train,
-    x: clampToTrackRange(train.x, currentTrack),
-    autoHeld: true,
-    delay: Number((ndelay + 0.02).toFixed(1)),
-  }
-}
 
   if (currentStation && !stoppedStations.includes(currentStation.id)) {
     const stopX = stationStopX(currentStation)
@@ -1002,37 +989,37 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
   }
 
   const priorityBoost = (id) => {
-  const target = trains.find((t) => t.id === id)
-  const willPrioritize = !target?.priority
+    const target = trains.find((t) => t.id === id)
+    const willPrioritize = !target?.priority
 
-  setTrains((prev) =>
-    prev.map((t) =>
-      t.id === id
-        ? {
-            ...t,
-            priority: willPrioritize,
-            delay: willPrioritize
-              ? Math.max(0, Number((t.delay - 1.2).toFixed(1)))
-              : t.delay,
-            speed: willPrioritize
-              ? Number(Math.min(t.speed + 0.03, 0.62).toFixed(2))
-              : Number(Math.max(t.speed - 0.03, 0.3).toFixed(2)),
-          }
-        : t,
-    ),
-  )
-
-  if (willPrioritize) {
-    setScore((s) => Math.max(0, s - 30))
-    setMessage(
-      `${id}に優先通過を設定しました。他列車へのしわ寄せに注意しましょう。`,
+    setTrains((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              priority: willPrioritize,
+              delay: willPrioritize
+                ? Math.max(0, Number((t.delay - 1.2).toFixed(1)))
+                : t.delay,
+              speed: willPrioritize
+                ? Number(Math.min(t.speed + 0.03, 0.62).toFixed(2))
+                : Number(Math.max(t.speed - 0.03, 0.3).toFixed(2)),
+            }
+          : t,
+      ),
     )
-    addEvent(`${formattedTime} ${id}: 優先通過設定`)
-  } else {
-    setMessage(`${id}の優先通過を解除しました。`)
-    addEvent(`${formattedTime} ${id}: 優先通過解除`)
+
+    if (willPrioritize) {
+      setScore((s) => Math.max(0, s - 30))
+      setMessage(
+        `${id}に優先通過を設定しました。他列車へのしわ寄せに注意しましょう。`,
+      )
+      addEvent(`${formattedTime} ${id}: 優先通過設定`)
+    } else {
+      setMessage(`${id}の優先通過を解除しました。`)
+      addEvent(`${formattedTime} ${id}: 優先通過解除`)
+    }
   }
-}
 
   const resetGame = () => {
     setTrains(generateInitialTrains())
@@ -1079,9 +1066,11 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     )}
       <header className="game-header">
         <div>
-          <p className="version">JRE Shinkansen Dispatch Simulator v1.1.2</p>
-          <h1>JR東日本 新幹線 遅延回復
-            シミュレーター</h1>
+          <p className="version">JRE Shinkansen Dispatch Simulator v1.1.3</p>
+          <h1>
+  <span className="title-main">JR東日本 新幹線</span>
+  <span className="title-sub">遅延回復シミュレーター</span>
+</h1>
           <p className="lead">
             輸送指令として各列車の運転士たちに指示を送り、遅延回復を行いましょう。
       
@@ -1119,85 +1108,90 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
 
       <section className="main-layout">
         <div className="rail-panel">
-          <div className="rail-map">
-          <div className="stations">
-  {STATIONS.map((station) => (
-    <div
-      className="station"
-      key={station.id}
-      style={{ left: `${stationLabelX(station)}%` }}
-    >
-      <div className="station-dot" />
-      <span>{station.name}</span>
-    </div>
-  ))}
-             </div>
+          <p className="scroll-hint rail-scroll-hint">運行表示板は横にスクロールできます</p>
 
-            {TRACKS.map((track) => (
-              <div className="track-row" style={{ top: track.y }} key={track.id}>
-                <div className="track-line" />
-                <span>{track.name}</span>
+          <div className="rail-scroll">
+            <div className="rail-map">
+              <div className="stations">
+                {STATIONS.map((station) => (
+                  <div
+                    className="station"
+                    key={station.id}
+                    style={{ left: `${stationLabelX(station)}%` }}
+                  >
+                    <div className="station-dot" />
+                    <span>{station.name}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-            {OMIYA_EXTRA_TRACKS.map((track) => (
-  <div
-    className="omiya-extra-track-row"
-    style={{
-      top: track.y,
-      left: `${track.startX}%`,
-      width: `${track.endX - track.startX}%`,
-    }}
-    key={track.id}
-    title={track.name}
-  >
-    <div className="track-line" />
-    <span>{track.name}</span>
-  </div>
-))}
 
-            <div className="direction-boundary" />
+              {TRACKS.map((track) => (
+                <div className="track-row" style={{ top: track.y }} key={track.id}>
+                  <div className="track-line" />
+                  <span>{track.name}</span>
+                </div>
+              ))}
 
-            {SWITCH_POINTS.map((point) => (
-  <div
-    className={`route-switch ${point.direction}`}
-    key={point.id}
-    title={point.label}
-    aria-label={point.label}
-    style={{
-      left: `${point.x}%`,
-      top: point.top,
-      height: point.height,
-    }}
-  >
-    <i />
-  </div>
-))}
-
-            {trains.map((train) => {
-              const stationName = stationAt(train.x)
-
-              return (
+              {OMIYA_EXTRA_TRACKS.map((track) => (
                 <div
-                  className="train-wrap"
-                  key={train.id}
+                  className="omiya-extra-track-row"
                   style={{
-                    left: `${train.x}%`,
-                    top: routeTrackById(train.track)?.y - 23,
+                    top: track.y,
+                    left: `${track.startX}%`,
+                    width: `${track.endX - track.startX}%`,
+                  }}
+                  key={track.id}
+                  title={track.name}
+                >
+                  <div className="track-line" />
+                  <span>{track.name}</span>
+                </div>
+              ))}
+
+              <div className="direction-boundary" />
+
+              {SWITCH_POINTS.map((point) => (
+                <div
+                  className={`route-switch ${point.direction}`}
+                  key={point.id}
+                  title={point.label}
+                  aria-label={point.label}
+                  style={{
+                    left: `${point.x}%`,
+                    top: point.top,
+                    height: point.height,
                   }}
                 >
-                  <div className={`train ${train.colorClass}`}>
-                    <div className="train-top compact">
-                      <strong>
-                      {displayTrainName(train)} / {train.direction === 'up' ? '上り' : '下り'} / {train.turnbackRemaining > 0 ? `折返し準備${train.turnbackRemaining}s` : train.dwellRemaining > 0 ? `停車${train.dwellRemaining}s` : train.autoHeld ? '進路待ち' : `+${train.delay.toFixed(1)}分`}
-                      </strong>
-                      {(train.held || train.autoHeld) && <span className="hold-mark">×</span>}
-{!train.held && !train.autoHeld && train.dwellRemaining > 0 && <span>⏸</span>}
-                    </div>
-                  </div>
-                  {stationName && <p className="near-station">{stationName}付近</p>}
+                  <i />
                 </div>
-              )
-            })}
+              ))}
+
+              {trains.map((train) => {
+                const stationName = stationAt(train.x)
+
+                return (
+                  <div
+                    className="train-wrap"
+                    key={train.id}
+                    style={{
+                      left: `${train.x}%`,
+                      top: routeTrackById(train.track)?.y - 23,
+                    }}
+                  >
+                    <div className={`train ${train.colorClass}`}>
+                      <div className="train-top compact">
+                        <strong>
+                          {displayTrainName(train)} / {train.direction === 'up' ? '上り' : '下り'} / {train.turnbackRemaining > 0 ? `折返し準備${train.turnbackRemaining}s` : train.dwellRemaining > 0 ? `停車${train.dwellRemaining}s` : train.autoHeld ? '進路待ち' : `+${train.delay.toFixed(1)}分`}
+                        </strong>
+                        {(train.held || train.autoHeld) && <span className="hold-mark">×</span>}
+                        {!train.held && !train.autoHeld && train.dwellRemaining > 0 && <span>⏸</span>}
+                      </div>
+                    </div>
+                    {stationName && <p className="near-station">{stationName}付近</p>}
+                  </div>
+                )
+              })}
+            </div>
           </div>
 
           <div className="message">
@@ -1205,42 +1199,45 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
             <p>{message}</p>
           </div>
 
-          <div className="waiting-panel">
-            <div className="waiting-panel-head">
-              <strong>後続列車</strong>
-              <span>大宮方面 → 上り本線へ接近予定</span>
-            </div>
-            <div className="waiting-trains">
-              {waitingTrains.map((train) => (
-                <div className="waiting-train-card" key={train.id}>
-                  <strong>{train.name}</strong>
-                  <span>{train.direction === 'up' ? '上り' : '下り'} / {train.targetTrack}</span>
-                  <p>{train.status}・{waitingTrainEtaLabel(train)}</p>
-                </div>
-              ))}
+          <p className="scroll-hint waiting-scroll-hint">後続列車案内は横にスクロールできます</p>
+          <div className="waiting-scroll">
+            <div className="waiting-panel">
+              <div className="waiting-panel-head">
+                <strong>後続列車</strong>
+                <span>大宮方面 → 上り本線へ接近予定</span>
+              </div>
+              <div className="waiting-trains">
+                {waitingTrains.map((train) => (
+                  <div className="waiting-train-card" key={train.id}>
+                    <strong>{train.name}</strong>
+                    <span>{train.direction === 'up' ? '上り' : '下り'} / {train.targetTrack}</span>
+                    <p>{train.status}・{waitingTrainEtaLabel(train)}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-
+        
         <aside className="control-panel">
-  <h2>⇄ 指令操作盤</h2>
+          <h2>⇄ 指令操作盤</h2>
 
-  <div className="mobile-train-selector" aria-label="操作する列車を選択">
-    <label htmlFor="mobile-train-select">操作する列車</label>
-    <select
-      id="mobile-train-select"
-      value={selectedTrainId ?? ''}
-      onChange={(event) => setSelectedTrainId(event.target.value)}
-    >
-      {trains.map((train) => (
-        <option value={train.id} key={train.id}>
-          {displayTrainName(train)} / {train.direction === 'up' ? '上り' : '下り'} / +{train.delay.toFixed(1)}分
-        </option>
-      ))}
-    </select>
-  </div>
+          <div className="mobile-train-selector" aria-label="操作する列車を選択">
+            <label htmlFor="mobile-train-select">操作する列車</label>
+            <select
+              id="mobile-train-select"
+              value={selectedTrainId ?? ''}
+              onChange={(event) => setSelectedTrainId(event.target.value)}
+            >
+              {trains.map((train) => (
+                <option value={train.id} key={train.id}>
+                  {displayTrainName(train)} / {train.direction === 'up' ? '上り' : '下り'} / +{train.delay.toFixed(1)}分
+                </option>
+              ))}
+            </select>
+          </div>
 
-  {pointsLocked && <p className="point-lock">ポイント転換中……</p>}
+          {pointsLocked && <p className="point-lock">ポイント転換中……</p>}
 
           <div className="train-controls">
             {trains.map((train) => (

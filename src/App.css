@@ -731,10 +731,6 @@ button {
     grid-template-columns: 1fr;
   }
 
-  .rail-map {
-    height: 300px;
-  }
-
   .stat-card strong {
     font-size: 22px;
   }
@@ -1022,41 +1018,6 @@ button {
     max-width: none;
   }
 
-  .rail-panel {
-    display: block;
-    width: 100%;
-    max-width: 100%;
-    overflow-x: scroll !important;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-x pan-y;
-  }
-
-  .rail-panel::before {
-    content: '線路図は横にスクロールできます';
-    display: block;
-    width: 920px !important;
-    min-width: 920px !important;
-    padding: 8px 12px;
-    border-bottom: 1px solid #e4e4e7;
-    background: #f8fafc;
-    color: #52525b;
-    font-size: 12px;
-    font-weight: 700;
-  }
-
-  .rail-map,
-  .message,
-  .waiting-panel {
-    width: 920px !important;
-    min-width: 920px !important;
-    max-width: none !important;
-  }
-
-  .waiting-panel {
-    box-sizing: border-box;
-  }
-
   .waiting-panel-head {
     align-items: flex-start;
     flex-direction: column;
@@ -1165,5 +1126,129 @@ button {
 
   .action-buttons {
     grid-template-columns: 1fr;
+  }
+}
+
+
+
+/* Separated mobile scroll areas */
+.scroll-hint {
+  display: none;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid #e4e4e7;
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+  background: #f8fafc;
+  color: #52525b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.rail-scroll,
+.waiting-scroll {
+  width: 100%;
+}
+
+.rail-map {
+  height: 360px;
+  min-height: 360px;
+}
+
+@media (max-width: 720px) {
+  .waiting-scroll {
+    border-top: 1px solid #e4e4e7;
+  }
+}
+
+.rail-panel::before {
+  content: none !important;
+  display: none !important;
+}
+
+@media (max-width: 720px) {
+  .rail-panel {
+    overflow: hidden !important;
+  }
+
+  .scroll-hint {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .rail-scroll,
+  .waiting-scroll {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    overscroll-behavior-x: contain;
+  }
+
+  .rail-scroll > .rail-map {
+    width: 1000px !important;
+    min-width: 1000px !important;
+    max-width: none !important;
+    height: 430px;
+    min-height: 430px;
+    flex: 0 0 auto;
+  }
+
+  .message {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .waiting-scroll > .waiting-panel {
+    width: 920px !important;
+    min-width: 920px !important;
+    max-width: none !important;
+    box-sizing: border-box;
+  }
+}
+
+/* Responsive title layout */
+.game-header h1 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2em 0.45em;
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+
+.title-main,
+.title-sub {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .game-header h1 {
+    flex-direction: column;
+    gap: 4px;
+    font-size: clamp(23px, 6.4vw, 32px);
+    line-height: 1.18;
+    letter-spacing: -0.05em;
+  }
+
+  .title-main,
+  .title-sub {
+    display: block;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 380px) {
+  .game-header h1 {
+    font-size: clamp(21px, 6vw, 26px);
+    letter-spacing: -0.06em;
   }
 }
