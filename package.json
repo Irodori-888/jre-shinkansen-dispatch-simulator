@@ -1,7 +1,7 @@
 {
-  "name": "train-delay-game",
+  "name": "jre-shinkansen-dispatch-simulator",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.1.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
