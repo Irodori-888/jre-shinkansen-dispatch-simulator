@@ -825,6 +825,8 @@ export default function App() {
   const [waitingTrains, setWaitingTrains] = useState(() => generateWaitingTrains())
   const [selectedTrainId, setSelectedTrainId] = useState(null)
   const [selectedTrainGroup, setSelectedTrainGroup] = useState(null)
+  const [selectedWaitingTrain, setSelectedWaitingTrain] = useState(null)
+  const [waitingListOpen, setWaitingListOpen] = useState(false)
   const [upRouteOpenSeconds, setUpRouteOpenSeconds] = useState(0)
   const [running, setRunning] = useState(false)
   const [gameOver, setGameOver] = useState(false)
@@ -871,6 +873,11 @@ export default function App() {
       setSelectedTrainGroup(null)
     }
   }, [selectedTrainGroup, trains])
+  const selectedWaitingTrainDetails = useMemo(() => {
+  if (!selectedWaitingTrain) return null
+
+  return waitingTrains.find((train) => train.id === selectedWaitingTrain.id) ?? selectedWaitingTrain
+}, [selectedWaitingTrain, waitingTrains])
 
   const formattedTime = `${String(Math.floor(time / 3600)).padStart(
     2,
@@ -1157,6 +1164,8 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     tokyoTurnbacksSinceLastDeadhead = 0
     setSelectedTrainId(null)
     setSelectedTrainGroup(null)
+    setSelectedWaitingTrain(null)
+    setWaitingListOpen(false)
     setUpRouteOpenSeconds(0)
     setRunning(false)
     setGameOver(false)
@@ -1357,14 +1366,16 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
                 <strong>後続列車</strong>
                 <span>大宮方面 → 上り本線へ接近予定</span>
               </div>
-              <div className="waiting-trains">
-                {waitingTrains.map((train) => (
-                  <div className="waiting-train-card" key={train.id}>
-                    <strong>{train.name}</strong>
-                    <span>{train.direction === 'up' ? '上り' : '下り'} / {train.targetTrack}</span>
-                    <p>{train.status}・{waitingTrainEtaLabel(train)}</p>
-                  </div>
-                ))}
+              <div className="waiting-trains waiting-trains-launcher">
+                <button
+                  type="button"
+                  className="waiting-list-open-button"
+                  onClick={() => setWaitingListOpen(true)}
+                >
+                  <strong>後続列車一覧を開く</strong>
+                  <span>{waitingTrains.length}本が大宮方面から接近中</span>
+                  <p>クリックして到着予定・入線先を確認</p>
+                </button>
               </div>
             </div>
           </div>
@@ -1373,20 +1384,6 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
         <aside className="control-panel">
           <h2>⇄ 指令操作盤</h2>
 
-          <div className="mobile-train-selector" aria-label="操作する列車を選択">
-            <label htmlFor="mobile-train-select">操作する列車</label>
-            <select
-              id="mobile-train-select"
-              value={selectedTrainId ?? ''}
-              onChange={(event) => setSelectedTrainId(event.target.value)}
-            >
-              {trains.map((train) => (
-                <option value={train.id} key={train.id}>
-                  {displayTrainName(train)} / {train.direction === 'up' ? '上り' : '下り'} / +{train.delay.toFixed(1)}分
-                </option>
-              ))}
-            </select>
-          </div>
 
           {pointsLocked && <p className="point-lock">ポイント転換中……</p>}
 
@@ -1456,6 +1453,73 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
         停車後、前方が詰まっていなければ自動で発車し、前方が詰まっている場合は自動で抑止されます。
         上り本線が大宮〜上野間で5秒以上開通していると後続列車が先行入線します。適切な進路を構成しながら遅延回復を目指してください。
       </p>
+
+      {waitingListOpen && (
+        <div className="waiting-train-modal" role="dialog" aria-label="後続列車一覧">
+          <div className="waiting-train-modal-card waiting-train-list-modal-card">
+            <div className="waiting-train-modal-head">
+              <div>
+                <strong>後続列車一覧</strong>
+                <span>大宮方面 → 上り本線へ接近予定</span>
+              </div>
+              <button
+                type="button"
+                aria-label="閉じる"
+                onClick={() => {
+                  setWaitingListOpen(false)
+                  setSelectedWaitingTrain(null)
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="waiting-train-modal-list">
+              {waitingTrains.map((train) => (
+                <button
+                  type="button"
+                  className="waiting-train-modal-item"
+                  key={train.id}
+                  onClick={() => setSelectedWaitingTrain(train)}
+                >
+                  <strong>{train.name}</strong>
+                  <span>{train.direction === 'up' ? '上り' : '下り'} / {train.targetTrack}</span>
+                  <p>{train.status}・{waitingTrainEtaLabel(train)} / 想定遅延 +{(train.delay ?? 0).toFixed(1)}分</p>
+                </button>
+              ))}
+            </div>
+
+            {selectedWaitingTrainDetails && (
+              <dl className="waiting-train-modal-details">
+                <div>
+                  <dt>選択中</dt>
+                  <dd>{selectedWaitingTrainDetails.name}</dd>
+                </div>
+                <div>
+                  <dt>方向</dt>
+                  <dd>{selectedWaitingTrainDetails.direction === 'up' ? '上り' : '下り'}</dd>
+                </div>
+                <div>
+                  <dt>入線予定</dt>
+                  <dd>{waitingTrainEtaLabel(selectedWaitingTrainDetails)}</dd>
+                </div>
+                <div>
+                  <dt>入線先</dt>
+                  <dd>{selectedWaitingTrainDetails.targetTrack}</dd>
+                </div>
+                <div>
+                  <dt>状態</dt>
+                  <dd>{selectedWaitingTrainDetails.status}</dd>
+                </div>
+                <div>
+                  <dt>想定遅延</dt>
+                  <dd>+{(selectedWaitingTrainDetails.delay ?? 0).toFixed(1)}分</dd>
+                </div>
+              </dl>
+            )}
+          </div>
+        </div>
+      )}
 
       {selectedTrainGroupDetails && (
   <div className="mobile-train-group-panel" role="dialog" aria-label="スマホ版指令操作盤">
