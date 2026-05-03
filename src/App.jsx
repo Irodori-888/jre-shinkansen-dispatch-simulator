@@ -1066,7 +1066,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     )}
       <header className="game-header">
         <div>
-          <p className="version">JRE Shinkansen Dispatch Simulator v1.1</p>
+          <p className="version">JRE Shinkansen Dispatch Simulator v1.1.1</p>
           <h1>JR東日本 新幹線 遅延回復
             シミュレーター</h1>
           <p className="lead">
