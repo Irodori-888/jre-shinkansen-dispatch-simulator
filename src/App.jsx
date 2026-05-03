@@ -81,8 +81,9 @@ const SWITCH_POINTS = [
 const TOKYO_TERMINAL_LIMIT_X = 30
 const TOKYO_TERMINAL_DOWN_LIMIT_X = 24
 
-const INITIAL_TRAIN_COUNT =10
+const INITIAL_TRAIN_COUNT = 12
 const WAITING_TRAIN_COUNT = 9
+let tokyoTurnbacksSinceLastDeadhead = 0
 
 const TRAIN_NUMBER_RULES = [
   { type: 'はやぶさ', start: 1, note: '標準' },
@@ -146,6 +147,7 @@ function makeWaitingTrain(rule, direction, usedNumbers, index, etaSeconds) {
     status: etaSeconds > 0 ? '接近中' : '入線待ち',
     etaSeconds,
     eta: etaSeconds > 0 ? `約${Math.ceil(etaSeconds / 60)}分後` : '入線可能',
+    delay: randomInt(0, 5),
     colorClass: colorClassForTrainType(rule.type),
   }
 }
@@ -288,6 +290,17 @@ function generateWaitingTrains(count = WAITING_TRAIN_COUNT) {
     .map((item, index) => makeWaitingTrain(item.rule, 'up', usedNumbers, index, item.etaSeconds))
 }
 
+function generateAdditionalWaitingTrain(existingWaitingTrains = []) {
+  const usedNumbers = new Set(
+    existingWaitingTrains.map((train) => train.name),
+  )
+  const index = existingWaitingTrains.length + randomInt(1, 9999)
+  const rule = pickRandom(TRAIN_NUMBER_RULES)
+  const etaSeconds = randomInt(4, 10) * 60 + randomInt(0, 45)
+
+  return makeWaitingTrain(rule, 'up', usedNumbers, index, etaSeconds)
+}
+
 function waitingTrainEtaLabel(train) {
   if (!Number.isFinite(train.etaSeconds) || train.etaSeconds <= 0) return '入線可能'
 
@@ -300,6 +313,63 @@ function waitingTrainEtaLabel(train) {
 
 function displayTrainName(train) {
   return `${train.type}${train.number ?? ''}`
+}
+
+function trainDirectionLabel(train) {
+  return train.direction === 'up' ? '上り' : '下り'
+}
+
+function trainStatusLabel(train) {
+  if (train.turnbackRemaining > 0) return `折返し準備${train.turnbackRemaining}s`
+  if (train.dwellRemaining > 0) return `停車${train.dwellRemaining}s`
+  if (train.held || train.autoHeld) return '抑止中'
+  return '走行中'
+}
+
+function trainDisplayDetails(train) {
+  return `${displayTrainName(train)} / ${trainDirectionLabel(train)} / ${trackLabel(train.track)} / +${train.delay.toFixed(1)}分 / ${trainStatusLabel(train)}`
+}
+
+function leadTrainForGroup(group) {
+  return [...group].sort((a, b) => {
+    if (a.dir === 'right') return b.x - a.x
+    if (a.dir === 'left') return a.x - b.x
+    return a.x - b.x
+  })[0]
+}
+
+function groupTrainsForDisplay(trains) {
+  const groups = []
+
+  trains.forEach((train) => {
+    const group = groups.find(
+      (item) => item.track === train.track && Math.abs(item.x - train.x) < 2.8,
+    )
+
+    if (group) {
+      group.trains.push(train)
+      group.x = group.trains.reduce((sum, item) => sum + item.x, 0) / group.trains.length
+      return
+    }
+
+    groups.push({
+      id: `${train.track}-${Math.round(train.x)}`,
+      track: train.track,
+      x: train.x,
+      trains: [train],
+    })
+  })
+
+  return groups.map((group) => ({
+    ...group,
+    leadTrain: leadTrainForGroup(group.trains),
+    orderedTrains: [...group.trains].sort((a, b) => {
+      const sample = group.trains[0]
+      if (sample?.dir === 'right') return b.x - a.x
+      if (sample?.dir === 'left') return a.x - b.x
+      return a.x - b.x
+    }),
+  }))
 }
 
 function trackLabel(trackId) {
@@ -346,7 +416,7 @@ function activeTrainFromWaitingTrain(waitingTrain) {
     track: targetTrack?.id ?? 'up-main',
     assignedPlatform: assignedPlatform?.id ?? 'omiya13',
     speed: speedForTrainType(parsed.type),
-    delay: randomInt(0, 5),
+    delay: Number((waitingTrain.delay ?? randomInt(0, 5)).toFixed(1)),
     held: false,
     priority: false,
     autoHeld: false,
@@ -355,6 +425,22 @@ function activeTrainFromWaitingTrain(waitingTrain) {
     colorClass: colorClassForTrainType(parsed.type),
     plan: createTrainPlan('up', assignedPlatform),
     stoppedStations: [],
+  }
+}
+
+function isUpRouteOpenBetweenOmiyaAndUeno(activeTrains) {
+  const upTrackIds = new Set(['up-main', 'up-sub'])
+
+  return !activeTrains.some((train) => {
+    if (!upTrackIds.has(train.track)) return false
+    return train.x >= 38 && train.x <= 82
+  })
+}
+
+function reduceDelayForEarlyAdmission(train) {
+  return {
+    ...train,
+    delay: Math.max(0, Number(((train.delay ?? 0) - 0.3).toFixed(1))),
   }
 }
 
@@ -484,7 +570,22 @@ function firstOddNumber(number) {
 }
 
 function turnbackTypeFor(train) {
-  const keepSameTypes = ['はやぶさ・こまち', 'やまびこ・つばさ', 'はくたか', 'かがやき', 'とき']
+  const keepSameTypes = ['はやぶさ・こまち', 'やまびこ・つばさ']
+  const joetsuHokurikuTurnbackTypes = ['はくたか', 'とき', 'かがやき', 'たにがわ']
+
+  if (tokyoTurnbacksSinceLastDeadhead >= 10) {
+    tokyoTurnbacksSinceLastDeadhead = 0
+    return '回送'
+  }
+
+  tokyoTurnbacksSinceLastDeadhead += 1
+
+  if (
+    joetsuHokurikuTurnbackTypes.some((type) => train.type.includes(type)) ||
+    train.type.includes('たにがわ')
+  ) {
+    return pickRandom(joetsuHokurikuTurnbackTypes)
+  }
 
   if (keepSameTypes.some((type) => train.type.includes(type))) {
     return train.type
@@ -764,6 +865,7 @@ export default function App() {
   const [trains, setTrains] = useState(() => generateInitialTrains())
   const [waitingTrains, setWaitingTrains] = useState(() => generateWaitingTrains())
   const [selectedTrainId, setSelectedTrainId] = useState(null)
+  const [upRouteOpenSeconds, setUpRouteOpenSeconds] = useState(0)
   const [running, setRunning] = useState(false)
   const [gameOver, setGameOver] = useState(false)
   const [time, setTime] = useState(15 * 3600 + 23 * 60)
@@ -795,9 +897,18 @@ export default function App() {
       setTime((v) => v + 1)
 
       setTrains((prev) => {
-        const next = prev
+        let next = prev
           .map((train) => nextTrainState(train, prev))
           .filter(Boolean)
+
+        const routeOpen = isUpRouteOpenBetweenOmiyaAndUeno(next)
+        let earlyAdmissionTriggered = false
+
+        setUpRouteOpenSeconds((seconds) => {
+          const nextSeconds = routeOpen ? seconds + 1 : 0
+          earlyAdmissionTriggered = nextSeconds >= 5
+          return earlyAdmissionTriggered ? 0 : nextSeconds
+        })
 
         setWaitingTrains((waitingPrev) => {
           const updatedWaitingTrains = waitingPrev.map((waitingTrain) => {
@@ -807,21 +918,53 @@ export default function App() {
               etaSeconds: nextEtaSeconds,
               status: nextEtaSeconds > 0 ? '接近中' : '入線待ち',
               eta: nextEtaSeconds > 0 ? `約${Math.ceil(nextEtaSeconds / 60)}分後` : '入線可能',
+              delay: Math.max(0, Number(((waitingTrain.delay ?? 0) - (earlyAdmissionTriggered ? 0.3 : 0)).toFixed(1))),
             }
           })
 
-          const admitIndex = updatedWaitingTrains.findIndex((waitingTrain) =>
-            canAdmitWaitingTrain(waitingTrain, next),
-          )
+          const admitIndex = earlyAdmissionTriggered
+            ? updatedWaitingTrains
+                .map((waitingTrain, index) => ({ waitingTrain, index }))
+                .sort((a, b) => (a.waitingTrain.etaSeconds ?? 0) - (b.waitingTrain.etaSeconds ?? 0))
+                .find(({ waitingTrain }) => {
+                  const candidate = { ...waitingTrain, etaSeconds: 0 }
+                  return canAdmitWaitingTrain(candidate, next)
+                })?.index ?? -1
+            : updatedWaitingTrains.findIndex((waitingTrain) =>
+                canAdmitWaitingTrain(waitingTrain, next),
+              )
 
-          if (admitIndex === -1) return updatedWaitingTrains
+          let remainingWaitingTrains = updatedWaitingTrains
 
-          const admittedWaitingTrain = updatedWaitingTrains[admitIndex]
-          const admittedTrain = activeTrainFromWaitingTrain(admittedWaitingTrain)
-          next.push(admittedTrain)
-          addEvent(`${formattedTime} ${admittedWaitingTrain.name}: 大宮方面から入線`)
+          if (admitIndex !== -1) {
+            const admittedWaitingTrain = {
+              ...updatedWaitingTrains[admitIndex],
+              etaSeconds: 0,
+              status: '入線待ち',
+              eta: '入線可能',
+            }
+            const admittedTrain = activeTrainFromWaitingTrain(admittedWaitingTrain)
+            next = next.map((train) =>
+              earlyAdmissionTriggered ? reduceDelayForEarlyAdmission(train) : train,
+            )
+            next.push(admittedTrain)
+            addEvent(
+              earlyAdmissionTriggered
+                ? `${formattedTime} ${admittedWaitingTrain.name}: 上り進路開通により先行入線`
+                : `${formattedTime} ${admittedWaitingTrain.name}: 大宮方面から入線`,
+            )
 
-          return updatedWaitingTrains.filter((_, index) => index !== admitIndex)
+            remainingWaitingTrains = updatedWaitingTrains.filter((_, index) => index !== admitIndex)
+          }
+
+          while (remainingWaitingTrains.length < WAITING_TRAIN_COUNT) {
+            remainingWaitingTrains = [
+              ...remainingWaitingTrains,
+              generateAdditionalWaitingTrain(remainingWaitingTrains),
+            ]
+          }
+
+          return remainingWaitingTrains
         })
 
         const nextRisk = riskLevel(next)
@@ -1024,7 +1167,9 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
   const resetGame = () => {
     setTrains(generateInitialTrains())
     setWaitingTrains(generateWaitingTrains())
+    tokyoTurnbacksSinceLastDeadhead = 0
     setSelectedTrainId(null)
+    setUpRouteOpenSeconds(0)
     setRunning(false)
     setGameOver(false)
     setTime(15 * 3600 + 23 * 60)
@@ -1166,31 +1311,47 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
                 </div>
               ))}
 
-              {trains.map((train) => {
-                const stationName = stationAt(train.x)
+              {groupTrainsForDisplay(trains).map((group) => {
+  const train = group.leadTrain
+const stationName = stationAt(train.x)
+const hasMultipleTrains = group.orderedTrains.length > 1
+const trackY = routeTrackById(train.track)?.y ?? 0
+const popupHorizontalClass = group.x > 72 ? 'popup-left' : group.x < 24 ? 'popup-right' : 'popup-center'
+const popupVerticalClass = trackY > 230 ? 'popup-above' : 'popup-below'
 
-                return (
-                  <div
-                    className="train-wrap"
-                    key={train.id}
-                    style={{
-                      left: `${train.x}%`,
-                      top: routeTrackById(train.track)?.y - 23,
-                    }}
-                  >
-                    <div className={`train ${train.colorClass}`}>
-                      <div className="train-top compact">
-                        <strong>
-                          {displayTrainName(train)} / {train.direction === 'up' ? '上り' : '下り'} / {train.turnbackRemaining > 0 ? `折返し準備${train.turnbackRemaining}s` : train.dwellRemaining > 0 ? `停車${train.dwellRemaining}s` : train.autoHeld ? '進路待ち' : `+${train.delay.toFixed(1)}分`}
-                        </strong>
-                        {(train.held || train.autoHeld) && <span className="hold-mark">×</span>}
-                        {!train.held && !train.autoHeld && train.dwellRemaining > 0 && <span>⏸</span>}
-                      </div>
-                    </div>
-                    {stationName && <p className="near-station">{stationName}付近</p>}
-                  </div>
-                )
-              })}
+return (
+  <div
+    className={`train-wrap ${hasMultipleTrains ? 'train-wrap-cluster' : ''} ${popupHorizontalClass} ${popupVerticalClass}`}
+      key={group.orderedTrains.map((item) => item.id).join('-')}
+      style={{
+        left: `${group.x}%`,
+        top:trackY - 23,
+      }}
+    >
+      <div className={`train ${train.colorClass}`}>
+        <div className="train-top compact">
+          <strong>
+            {displayTrainName(train)} / {trainDirectionLabel(train)} / {trainStatusLabel(train)}
+          </strong>
+          {hasMultipleTrains && <span className="cluster-count">+{group.orderedTrains.length - 1}</span>}
+          {(train.held || train.autoHeld) && <span className="hold-mark">×</span>}
+          {!train.held && !train.autoHeld && train.dwellRemaining > 0 && <span>⏸</span>}
+        </div>
+      </div>
+
+      <div className="train-detail-popup" role="tooltip">
+        <strong>{hasMultipleTrains ? '同位置の列車' : '列車詳細'}</strong>
+        <ol>
+          {group.orderedTrains.map((item) => (
+            <li key={item.id}>{trainDisplayDetails(item)}</li>
+          ))}
+        </ol>
+      </div>
+
+      {stationName && <p className="near-station">{stationName}付近</p>}
+    </div>
+  )
+})}
             </div>
           </div>
 
@@ -1303,7 +1464,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
       <p className="help">
         遊び方: 全列車は東京・上野・大宮で30秒停車します。停車時間をうまく計算しながら列車に指示を出しましょう。
         停車後、前方が詰まっていなければ自動で発車し、前方が詰まっている場合は自動で抑止されます。
-        適切な進路を構成しながら遅延回復を目指してください。
+        上り本線が大宮〜上野間で5秒以上開通していると後続列車が先行入線します。適切な進路を構成しながら遅延回復を目指してください。
       </p>
     </main>
   )
