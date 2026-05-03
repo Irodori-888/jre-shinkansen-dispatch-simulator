@@ -38,9 +38,10 @@ button {
 }
 
 .version {
-  margin: 0 0 6px;
+  margin: 0 auto 6px;
   color: #525252;
   font-size: 14px;
+  text-align: center;
 }
 
 .game-header h1 {
@@ -55,6 +56,7 @@ button {
   margin: 10px auto 0;
   color: #525252;
   line-height: 1.7;
+  text-align: center;
 }
 
 .primary-button,
@@ -474,34 +476,6 @@ button {
   gap: 10px;
 }
 
-.waiting-train-card {
-  padding: 10px 12px;
-  border: 1px solid #e4e4e7;
-  border-radius: 14px;
-  background: #fafafa;
-}
-
-.waiting-train-card strong {
-  display: block;
-  color: #18181b;
-  font-size: 14px;
-  line-height: 1.35;
-}
-
-.waiting-train-card span {
-  display: block;
-  margin-top: 2px;
-  color: #52525b;
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.waiting-train-card p {
-  margin: 5px 0 0;
-  color: #71717a;
-  font-size: 12px;
-  line-height: 1.4;
-}
 
 /* Panel headings */
 .log-panel h2 {
@@ -549,12 +523,13 @@ button {
   .game-header {
     min-height: auto;
     padding: 0;
-    text-align: left;
+    text-align: center;
   }
 
   .lead {
-    margin-left: 0;
-    margin-right: 0;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
   }
 
   .stats {
@@ -691,21 +666,6 @@ button {
   line-height: 1.5;
 }
 
-/* Waiting train cards */
-.waiting-train-card {
-  position: relative;
-  overflow: hidden;
-}
-
-.waiting-train-card::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 6px;
-  background: #3f3f46;
-}
 
 /* Game over overlay */
 .game-over-overlay {
@@ -775,23 +735,6 @@ button {
 @media (max-width: 420px) {
   .game {
     padding: 10px;
-  }
-
-  .stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  .stat-card {
-    padding: 10px;
-  }
-
-  .stat-card strong {
-    font-size: 16px;
-  }
-
-  .stats-actions {
-    grid-template-columns: 1fr;
   }
 }
 
@@ -1004,8 +947,6 @@ button {
     bottom: calc(100% + 8px);
   }
 }
-
-
 
 
 /* Mobile train tap panel fixes */
@@ -1725,12 +1666,20 @@ button {
 
 /* Tutorial modal */
 .tutorial-open-button {
-  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 150px;
+  max-width: 220px;
+  min-height: 42px;
+  margin: 12px auto 0;
   border: 1px solid #d4d4d8;
   border-radius: 999px;
-  padding: 10px 14px;
+  padding: 8px 18px;
   background: rgba(255, 255, 255, 0.92);
   color: #1f5f46;
+  font-size: 15px;
   font-weight: 800;
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
@@ -1845,115 +1794,223 @@ button {
   min-height: 42px;
 }
 
+/* Compact mobile stats grid */
 @media (max-width: 720px) {
-  .tutorial-open-button {
-    width: 100%;
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .stat-card {
+    min-height: 70px;
+    padding: 10px 8px;
+    border-radius: 12px;
     text-align: center;
   }
 
-  .tutorial-overlay {
-    padding: 14px;
+  .stat-card span {
+    margin-bottom: 3px;
+    font-size: 10px;
+    line-height: 1.2;
   }
 
-  .tutorial-card {
-    padding: 16px;
+  .stat-card strong {
+    font-size: 20px;
+    line-height: 1.15;
   }
 
-  .tutorial-body {
-    min-height: 150px;
-    padding: 16px;
+  .stats-actions {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    min-height: auto;
+    padding: 8px;
+    border-radius: 18px;
   }
 
-  .tutorial-actions {
-    grid-template-columns: 1fr;
+  .stats-actions button {
+    min-width: 0;
+    min-height: 42px;
+    padding: 8px 10px;
+    border-radius: 13px;
+    font-size: 13px;
   }
 }
 
-/* Mobile waiting train list modal */
+@media (max-width: 420px) {
+  .stats {
+    gap: 7px;
+  }
+
+  .stat-card {
+    min-height: 64px;
+    padding: 9px 7px;
+    border-radius: 11px;
+  }
+
+  .stat-card span {
+    font-size: 9px;
+  }
+
+  .stat-card strong {
+    font-size: 18px;
+  }
+
+  .stats-actions {
+    gap: 7px;
+    padding: 7px;
+  }
+
+  .stats-actions button {
+    min-height: 40px;
+    padding: 7px 8px;
+    font-size: 12px;
+  }
+}
+
+
+/* Final mobile caution frame for start/reset controls */
 @media (max-width: 720px) {
-  .waiting-train-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 180;
-    display: grid !important;
-    place-items: end center;
-    padding: 12px;
-    background: rgba(15, 23, 42, 0.28);
-  }
-
-  .waiting-train-modal-card {
-    width: 100%;
-    max-width: 520px;
-    max-height: min(78vh, 640px);
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: 14px;
-    border: 1px solid #d4d4d8;
-    border-radius: 22px 22px 16px 16px;
-    background: rgba(255, 255, 255, 0.98);
-    box-shadow: 0 -18px 38px rgba(15, 23, 42, 0.18);
-  }
-
-  .waiting-train-modal-head {
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-    text-align: left;
-  }
-
-  .waiting-train-modal-head > div {
-    flex: 1 1 auto;
-    min-width: 0;
-    text-align: left;
-  }
-
-  .waiting-train-modal-head strong {
-    font-size: 17px;
-  }
-
-  .waiting-train-modal-list {
-    display: grid;
-    grid-template-columns: 1fr;
+  .stats-actions {
     gap: 8px;
-    margin-bottom: 12px;
-    overflow-x: hidden;
+    padding: 8px;
+    border-radius: 20px;
+    background:
+      linear-gradient(#ffffff, #ffffff) padding-box,
+      repeating-linear-gradient(
+        135deg,
+        #facc15 0 11px,
+        #171717 11px 22px
+      ) border-box;
+    border: 5px solid transparent;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+    overflow: hidden;
   }
 
-  .waiting-train-modal-item {
-    width: 100%;
+  .stats-actions button {
     min-width: 0;
-    padding: 10px 12px;
+    min-height: 42px;
+    padding: 8px 10px;
+    border-radius: 13px;
+    border: 1px solid #d4d4d8;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 420px) {
+  .stats-actions {
+    gap: 7px;
+    padding: 7px;
+    border-radius: 18px;
+    border-width: 4px;
+    background:
+      linear-gradient(#ffffff, #ffffff) padding-box,
+      repeating-linear-gradient(
+        135deg,
+        #facc15 0 10px,
+        #171717 10px 20px
+      ) border-box;
   }
 
-  .waiting-train-modal-item strong,
-  .waiting-train-modal-item span,
-  .waiting-train-modal-item p {
-    overflow-wrap: anywhere;
+  .stats-actions button {
+    min-height: 40px;
+    padding: 7px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+  }
+}
+/* Mobile operation panel train name colors */
+@media (max-width: 720px) {
+  .mobile-operation-train-head .colored-train-name,
+  .mobile-operation-train-head .colored-train-name-part {
+    display: inline-flex;
+    align-items: baseline;
+    flex-wrap: wrap;
   }
 
-  .waiting-train-modal-details {
-    grid-template-columns: 1fr;
-    overflow-x: hidden;
+  .mobile-operation-train-head .train-name-green {
+    color: #15803d;
   }
 
-  .waiting-train-modal-details > div {
-    grid-template-columns: 82px minmax(0, 1fr);
-    gap: 10px;
-    padding: 9px 10px;
+  .mobile-operation-train-head .train-name-komachi {
+    color: #db2777;
   }
 
-  .waiting-train-modal-details dd {
-    overflow-wrap: anywhere;
+  .mobile-operation-train-head .train-name-tsubasa {
+    color: #c2410c;
   }
 
-  .waiting-trains-launcher {
-    min-width: 0;
-    width: 100%;
+  .mobile-operation-train-head .train-name-blue-purple {
+    color: #3730a3;
   }
 
-  .waiting-list-open-button {
-    width: 100%;
-    min-width: 0;
-    min-height: 76px;
+  .mobile-operation-train-head .train-name-beige-pink {
+    color: #be5b72;
   }
+
+  .mobile-operation-train-head .train-name-default {
+    color: #1f5f46;
+  }
+
+  .mobile-operation-train-head .train-name-separator {
+    color: #18181b;
+  }
+}
+
+.waiting-train-modal-item .colored-train-name,
+.waiting-train-modal-details .colored-train-name {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.waiting-train-modal-item .colored-train-name-part,
+.waiting-train-modal-details .colored-train-name-part {
+  display: inline-flex;
+  align-items: baseline;
+}
+
+
+.waiting-train-modal-item .train-name-separator,
+.waiting-train-modal-details .train-name-separator {
+  color: #18181b;
+}
+
+/* Waiting train modal: keep train-name colors from being overridden by generic span styles */
+.waiting-train-modal-item .train-name-green,
+.waiting-train-modal-details .train-name-green {
+  color: #15803d;
+}
+
+.waiting-train-modal-item .train-name-komachi,
+.waiting-train-modal-details .train-name-komachi {
+  color: #db2777;
+}
+
+.waiting-train-modal-item .train-name-tsubasa,
+.waiting-train-modal-details .train-name-tsubasa {
+  color: #c2410c;
+}
+
+.waiting-train-modal-item .train-name-blue-purple,
+.waiting-train-modal-details .train-name-blue-purple {
+  color: #3730a3;
+}
+
+.waiting-train-modal-item .train-name-beige-pink,
+.waiting-train-modal-details .train-name-beige-pink {
+  color: #be5b72;
+}
+
+.waiting-train-modal-item .train-name-default,
+.waiting-train-modal-details .train-name-default {
+  color: #1f5f46;
+}
+
+.waiting-train-modal-item .train-name-separator,
+.waiting-train-modal-details .train-name-separator {
+  color: #18181b;
 }

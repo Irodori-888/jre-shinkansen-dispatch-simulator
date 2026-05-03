@@ -367,6 +367,32 @@ function coloredTrainName(train) {
   )
 }
 
+function coloredTrainNameText(name) {
+  const rawName = String(name ?? '')
+  const parts = rawName.split('・')
+
+  return (
+    <span className="colored-train-name">
+      {parts.map((part, index) => {
+        const match = part.match(/^(.*?)(\d+)$/)
+        const type = match ? match[1] : part
+        const number = match ? match[2] : ''
+
+        return (
+          <span className="colored-train-name-part" key={`${part}-${index}`}>
+            <span className={trainTypeColorClass(type)}>{type}{number}</span>
+            {index < parts.length - 1 && <span className="train-name-separator">・</span>}
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
+function waitingTrainNameBadge(name) {
+  return coloredTrainNameText(name)
+}
+
 function trainDirectionLabel(train) {
   return train.direction === 'up' ? '上り' : '下り'
 }
@@ -400,15 +426,31 @@ function parseWaitingTrainName(name) {
   }
 }
 
+function isTrackBlockedNearOmiyaEntry(trackId, activeTrains) {
+  return activeTrains.some((train) => train.track === trackId && train.x >= 82)
+}
+
+function availableUpAdmissionTrackShortName(activeTrains) {
+  const candidates = ['上り本線1', '上り本線2']
+
+  return candidates.find((shortName) => {
+    const track = trackByShortName(shortName)
+    if (!track) return false
+    return !isTrackBlockedNearOmiyaEntry(track.id, activeTrains)
+  }) ?? null
+}
+
+function canEarlyAdmitWaitingTrain(waitingTrain, activeTrains) {
+  if (!waitingTrain) return false
+  return Boolean(availableUpAdmissionTrackShortName(activeTrains))
+}
+
 function canAdmitWaitingTrain(waitingTrain, activeTrains) {
   const targetTrack = trackByShortName(waitingTrain.targetTrack)
   if (!targetTrack) return false
   if ((waitingTrain.etaSeconds ?? 0) > 0) return false
 
-  return !activeTrains.some((train) => {
-    if (train.track !== targetTrack.id) return false
-    return train.x >= 82
-  })
+  return !isTrackBlockedNearOmiyaEntry(targetTrack.id, activeTrains)
 }
 
 function activeTrainFromWaitingTrain(waitingTrain) {
@@ -648,8 +690,16 @@ function switchXsForTrack(targetTrack, train = null) {
 
   const currentTrack = train ? routeTrackById(train.track) : null
   const isOmiyaSideTrack = targetTrack.id.includes('omiya') || currentTrack?.id.includes('omiya')
+  const isNearOmiyaArea = Number.isFinite(train?.x) && train.x >= 56 && train.x <= 90
+  const isSameDirectionMainlineTransfer =
+    currentTrack &&
+    targetTrack &&
+    currentTrack.direction === targetTrack.direction &&
+    !currentTrack.id.includes('omiya') &&
+    !targetTrack.id.includes('omiya') &&
+    currentTrack.id !== targetTrack.id
 
-  if (isOmiyaSideTrack) return [64, 85]
+  if (isOmiyaSideTrack || (isNearOmiyaArea && isSameDirectionMainlineTransfer)) return [64, 85]
   if (isTokyoTerminalMainTrack(targetTrack)) return [28, 50]
   return []
 }
@@ -660,8 +710,16 @@ function canChangeTrackAtCurrentPosition(train, targetTrack) {
 
   const currentTrack = routeTrackById(train.track)
   const isOmiyaSideTrack = targetTrack.id.includes('omiya') || currentTrack?.id.includes('omiya')
+  const isNearOmiyaArea = Number.isFinite(train?.x) && train.x >= 56 && train.x <= 90
+  const isSameDirectionMainlineTransfer =
+    currentTrack &&
+    targetTrack &&
+    currentTrack.direction === targetTrack.direction &&
+    !currentTrack.id.includes('omiya') &&
+    !targetTrack.id.includes('omiya') &&
+    currentTrack.id !== targetTrack.id
   const switchXs = switchXsForTrack(targetTrack, train)
-  const tolerance = isOmiyaSideTrack ? 18 : 10
+  const tolerance = isOmiyaSideTrack || (isNearOmiyaArea && isSameDirectionMainlineTransfer) ? 18 : 10
 
   return switchXs.some((x) => Math.abs(train.x - x) <= tolerance)
 }
@@ -928,6 +986,7 @@ export default function App() {
 
     if (!hasVisibleTrain) {
       setSelectedTrainGroup(null)
+      setOperationWarnings({})
     }
   }, [selectedTrainGroup, trains])
   const selectedWaitingTrainDetails = useMemo(() => {
@@ -952,6 +1011,11 @@ export default function App() {
     setTutorialOpen(true)
   }
 
+  const closeTrainOperationPanel = () => {
+    setSelectedTrainGroup(null)
+    setOperationWarnings({})
+  }
+
   const formattedTime = `${String(Math.floor(time / 3600)).padStart(
     2,
     '0',
@@ -969,13 +1033,10 @@ export default function App() {
           .filter(Boolean)
 
         const routeOpen = isUpRouteOpenBetweenOmiyaAndUeno(next)
-        let earlyAdmissionTriggered = false
+        const nextUpRouteOpenSeconds = routeOpen ? upRouteOpenSeconds + 1 : 0
+        const earlyAdmissionTriggered = nextUpRouteOpenSeconds >= 5
 
-        setUpRouteOpenSeconds((seconds) => {
-          const nextSeconds = routeOpen ? seconds + 1 : 0
-          earlyAdmissionTriggered = nextSeconds >= 5
-          return earlyAdmissionTriggered ? 0 : nextSeconds
-        })
+        setUpRouteOpenSeconds(earlyAdmissionTriggered ? 0 : nextUpRouteOpenSeconds)
 
         setWaitingTrains((waitingPrev) => {
           const updatedWaitingTrains = waitingPrev.map((waitingTrain) => {
@@ -993,10 +1054,7 @@ export default function App() {
             ? updatedWaitingTrains
                 .map((waitingTrain, index) => ({ waitingTrain, index }))
                 .sort((a, b) => (a.waitingTrain.etaSeconds ?? 0) - (b.waitingTrain.etaSeconds ?? 0))
-                .find(({ waitingTrain }) => {
-                  const candidate = { ...waitingTrain, etaSeconds: 0 }
-                  return canAdmitWaitingTrain(candidate, next)
-                })?.index ?? -1
+                .find(({ waitingTrain }) => canEarlyAdmitWaitingTrain(waitingTrain, next))?.index ?? -1
             : updatedWaitingTrains.findIndex((waitingTrain) =>
                 canAdmitWaitingTrain(waitingTrain, next),
               )
@@ -1004,8 +1062,12 @@ export default function App() {
           let remainingWaitingTrains = updatedWaitingTrains
 
           if (admitIndex !== -1) {
+            const earlyAdmissionTrack = earlyAdmissionTriggered
+              ? availableUpAdmissionTrackShortName(next)
+              : null
             const admittedWaitingTrain = {
               ...updatedWaitingTrains[admitIndex],
+              targetTrack: earlyAdmissionTrack ?? updatedWaitingTrains[admitIndex].targetTrack,
               etaSeconds: 0,
               status: '入線待ち',
               eta: '入線可能',
@@ -1064,7 +1126,7 @@ export default function App() {
     }, 1000)
 
     return () => window.clearInterval(intervalId)
-  }, [running, gameOver, formattedTime])
+  }, [running, gameOver, formattedTime, upRouteOpenSeconds])
 
   useEffect(() => {
     if (trains.length === 0) {
@@ -1605,7 +1667,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
                   key={train.id}
                   onClick={() => setSelectedWaitingTrain(train)}
                 >
-                  <strong>{train.name}</strong>
+                  <strong>{waitingTrainNameBadge(train.name)}</strong>
                   <span>{train.direction === 'up' ? '上り' : '下り'} / {train.targetTrack}</span>
                   <p>{train.status}・{waitingTrainEtaLabel(train)} / 想定遅延 +{(train.delay ?? 0).toFixed(1)}分</p>
                 </button>
@@ -1616,7 +1678,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
               <dl className="waiting-train-modal-details">
                 <div>
                   <dt>選択中</dt>
-                  <dd>{selectedWaitingTrainDetails.name}</dd>
+                  <dd>{waitingTrainNameBadge(selectedWaitingTrainDetails.name)}</dd>
                 </div>
                 <div>
                   <dt>方向</dt>
@@ -1652,7 +1714,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
               <button
                 type="button"
                 aria-label="閉じる"
-                onClick={() => setSelectedTrainGroup(null)}
+                onClick={closeTrainOperationPanel}
               >
                 ×
               </button>
@@ -1719,7 +1781,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     type="button"
     className="mobile-operation-close"
     aria-label="閉じる"
-    onClick={() => setSelectedTrainGroup(null)}
+    onClick={closeTrainOperationPanel}
   >
     ×
   </button>
