@@ -72,11 +72,12 @@ const SWITCH_POINTS = [
   { id: 'ueno-omiya-up', label: '上野〜大宮 上り渡り', direction: 'up', x: 50, top: 72, height: 40 },
   { id: 'ueno-omiya-down', label: '上野〜大宮 下り渡り', direction: 'down', x: 50, top: 204, height: 48 },
 
-  { id: 'omiya-north-up-extra-in', label: '大宮以北 上り本線↔副本線 入口', direction: 'up', x: 64, top: 112, height: 40 },
-  { id: 'omiya-north-up-extra-out', label: '大宮以北 上り本線↔副本線 出口', direction: 'up', x: 85, top: 112, height: 40 },
-  { id: 'omiya-north-down-extra-in', label: '大宮以北 下り本線↔副本線 入口', direction: 'down', x: 64, top: 252, height: 40 },
-  { id: 'omiya-north-down-extra-out', label: '大宮以北 下り本線↔副本線 出口', direction: 'down', x: 85, top: 252, height: 40 },
+ { id: 'omiya-north-up-extra-in', label: '大宮以北 上り本線↔副本線 入口', direction: 'up', x: 64, top: 72, height: 80 },
+{ id: 'omiya-north-up-extra-out', label: '大宮以北 上り本線↔副本線 出口', direction: 'up', x: 85, top: 72, height: 80 },
+{ id: 'omiya-north-down-extra-in', label: '大宮以北 下り本線↔副本線 入口', direction: 'down', x: 64, top: 204, height: 88 },
+{ id: 'omiya-north-down-extra-out', label: '大宮以北 下り本線↔副本線 出口', direction: 'down', x: 85, top: 204, height: 88 },
 ]
+
 const TOKYO_TERMINAL_LIMIT_X = 30
 const TOKYO_TERMINAL_DOWN_LIMIT_X = 24
 
@@ -262,20 +263,20 @@ function generateWaitingTrains(count = WAITING_TRAIN_COUNT) {
   )
   const scheduledTrains = []
 
-  for (let minutes = 6; scheduledTrains.length < count * 2; minutes += randomInt(4, 7)) {
+  for (let minutes = 3; scheduledTrains.length < count * 2; minutes += randomInt(1, 4)) {
     scheduledTrains.push({
       rule: pickRandom(otherRules),
       etaSeconds: minutes * 60 + randomInt(0, 45),
     })
   }
 
-  for (let minutes = 15; minutes <= 180; minutes += 15) {
+  for (let minutes = 18; minutes <= 180; minutes += 18) {
     if (hayabusaKomachiRule) {
       scheduledTrains.push({ rule: hayabusaKomachiRule, etaSeconds: minutes * 60 })
     }
   }
 
-  for (let minutes = 20; minutes <= 180; minutes += 20) {
+  for (let minutes = 30; minutes <= 180; minutes += 30) {
     if (yamabikoTsubasaRule) {
       scheduledTrains.push({ rule: yamabikoTsubasaRule, etaSeconds: minutes * 60 })
     }
@@ -566,11 +567,11 @@ function clampToTrackRange(x, track) {
 }
 
 // --- Helper: Main track for Omiya extra track ---
-function mainTrackForExtraTrack(track) {
-  if (!track?.id?.includes('omiya')) return null
-  if (track.direction === 'up') return routeTrackById('up-sub')
-  if (track.direction === 'down') return routeTrackById('down-sub')
-  return null
+function mainTracksForExtraTrack(track) {
+  if (!track?.id?.includes('omiya')) return []
+  if (track.direction === 'up') return [routeTrackById('up-sub'), routeTrackById('up-main')].filter(Boolean)
+  if (track.direction === 'down') return [routeTrackById('down-sub'), routeTrackById('down-main')].filter(Boolean)
+  return []
 }
 
 function platformLabel(platformId) {
@@ -678,27 +679,27 @@ function nextTrainState(train, allTrains) {
   }
 
   if (isAtLimitedTrackEnd(train, currentTrack)) {
-    const mainTrack = mainTrackForExtraTrack(currentTrack)
-    const mergeCandidate = mainTrack
-      ? {
-          ...train,
-          x: clampToTrackRange(train.x, currentTrack),
-          track: mainTrack.id,
-          autoHeld: false,
-        }
-      : null
-
-    if (mergeCandidate && !isFrontBlocked(mergeCandidate, allTrains)) {
-      return mergeCandidate
-    }
-
-    return {
+  const mainTracks = mainTracksForExtraTrack(currentTrack)
+  const mergeCandidate = mainTracks
+    .map((mainTrack) => ({
       ...train,
       x: clampToTrackRange(train.x, currentTrack),
-      autoHeld: true,
-      delay: Number((ndelay + 0.02).toFixed(1)),
-    }
+      track: mainTrack.id,
+      autoHeld: false,
+    }))
+    .find((candidate) => !isFrontBlocked(candidate, allTrains))
+
+  if (mergeCandidate) {
+    return mergeCandidate
   }
+
+  return {
+    ...train,
+    x: clampToTrackRange(train.x, currentTrack),
+    autoHeld: true,
+    delay: Number((ndelay + 0.02).toFixed(1)),
+  }
+}
 
   if (currentStation && !stoppedStations.includes(currentStation.id)) {
     const stopX = stationStopX(currentStation)
