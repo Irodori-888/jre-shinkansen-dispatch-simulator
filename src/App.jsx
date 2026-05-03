@@ -315,6 +315,36 @@ function displayTrainName(train) {
   return `${train.type}${train.number ?? ''}`
 }
 
+function trainTypeColorClass(type) {
+  if (type.includes('こまち')) return 'train-name-komachi'
+  if (type.includes('つばさ')) return 'train-name-tsubasa'
+  if (type.includes('かがやき') || type.includes('はくたか') || type.includes('あさま')) return 'train-name-blue-purple'
+  if (type.includes('たにがわ') || type.includes('とき')) return 'train-name-beige-pink'
+  if (type.includes('はやぶさ') || type.includes('やまびこ') || type.includes('なすの')) return 'train-name-green'
+  return 'train-name-default'
+}
+
+function coloredTrainName(train) {
+  const rawName = displayTrainName(train)
+  const parts = train.type.split('・')
+  const number = train.number ?? ''
+
+  if (parts.length <= 1) {
+    return <span className={trainTypeColorClass(train.type)}>{rawName}</span>
+  }
+
+  return (
+    <span className="colored-train-name">
+      {parts.map((part, index) => (
+        <span className="colored-train-name-part" key={`${part}-${index}`}>
+          <span className={trainTypeColorClass(part)}>{part}{number}</span>
+          {index < parts.length - 1 && <span className="train-name-separator">・</span>}
+        </span>
+      ))}
+    </span>
+  )
+}
+
 function trainDirectionLabel(train) {
   return train.direction === 'up' ? '上り' : '下り'
 }
@@ -1395,12 +1425,10 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
 >
                 <div className="train-control-head">
                   <div>
-                    <strong>{displayTrainName(train)}</strong>
+                    <strong>{coloredTrainName(train)}</strong>
                     {(train.held || train.autoHeld) && <b className="control-hold-mark">× 抑止</b>}
                     <span>{train.direction === 'up' ? '上り' : '下り'} / +{train.delay.toFixed(1)}分 / {train.turnbackRemaining > 0 ? `折返し準備中 ${train.turnbackRemaining}s` : train.dwellRemaining > 0 ? `停車中 ${train.dwellRemaining}s` : train.autoHeld ? '進路待ち・自動抑止' : '走行可'}</span>
-                    <p className="route-plan">{train.plan}</p>
                     <p className="compact-info">現在進路: {trackLabel(train.track)}</p>
-                    <p className="compact-info">指定番線: {platformLabel(train.assignedPlatform)}</p>
                     {operationWarnings[train.id] && (
   <p className="operation-warning">⚠ {operationWarnings[train.id]}</p>
 )}
@@ -1522,6 +1550,72 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
       )}
 
       {selectedTrainGroupDetails && (
+        <div className="pc-train-operation-modal" role="dialog" aria-label="PC版指令操作盤">
+          <div className="pc-train-operation-card">
+            <div className="pc-train-operation-head">
+              <strong>指令操作盤</strong>
+              <button
+                type="button"
+                aria-label="閉じる"
+                onClick={() => setSelectedTrainGroup(null)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="pc-train-operation-list">
+              {selectedTrainGroupDetails.trains.map((train) => (
+                <section className="pc-train-operation-item" key={train.id}>
+                  <div className="pc-operation-train-head">
+                    <strong>{coloredTrainName(train)}</strong>
+                    {(train.held || train.autoHeld) && <b className="control-hold-mark">× 抑止</b>}
+                    <span>{trainDirectionLabel(train)} / +{train.delay.toFixed(1)}分 / {trainStatusLabel(train)}</span>
+                    <p className="compact-info">現在進路: {trackLabel(train.track)}</p>
+                    {operationWarnings[train.id] && (
+                      <p className="operation-warning">⚠ {operationWarnings[train.id]}</p>
+                    )}
+                  </div>
+
+                  <div className="pc-operation-section">
+                    <strong>進路を構成</strong>
+                    <div className="pc-track-buttons">
+                      {ROUTE_TRACKS.map((track) => (
+                        <button
+                          type="button"
+                          key={track.id}
+                          className={train.track === track.id ? 'selected' : ''}
+                          onClick={() => changeTrack(train.id, track.id)}
+                        >
+                          {track.shortName}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pc-operation-actions">
+                    <button
+                      type="button"
+                      className={train.held ? 'hold-button active' : 'hold-button'}
+                      onClick={() => toggleHold(train.id)}
+                    >
+                      {train.held ? '⏸ 解除' : '⏸ 抑止'}
+                    </button>
+                    <button
+                      type="button"
+                      className={train.priority ? 'priority-button active' : 'priority-button'}
+                      onClick={() => priorityBoost(train.id)}
+                    >
+                      {train.priority ? '⚡ 優先解除' : '⚡ 優先'}
+                    </button>
+                  </div>
+                </section>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedTrainGroupDetails && (
   <div className="mobile-train-group-panel" role="dialog" aria-label="スマホ版指令操作盤">
     <div className="mobile-train-group-card mobile-operation-card">
       <div className="mobile-train-group-head mobile-operation-head">
@@ -1540,10 +1634,9 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
         {selectedTrainGroupDetails.trains.map((train) => (
           <li key={train.id}>
             <div className="mobile-operation-train-head">
-              <strong>{displayTrainName(train)}</strong>
+              <strong>{coloredTrainName(train)}</strong>
               <span>{trainDirectionLabel(train)} / +{train.delay.toFixed(1)}分 / {trainStatusLabel(train)}</span>
               <span>現在進路: {trackLabel(train.track)}</span>
-              <span>指定番線: {platformLabel(train.assignedPlatform)}</span>
               {operationWarnings[train.id] && (
                 <span className="mobile-operation-warning">⚠ {operationWarnings[train.id]}</span>
               )}
