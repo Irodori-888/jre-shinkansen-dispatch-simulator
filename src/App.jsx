@@ -81,7 +81,7 @@ const SWITCH_POINTS = [
 const TOKYO_TERMINAL_LIMIT_X = 30
 const TOKYO_TERMINAL_DOWN_LIMIT_X = 24
 
-const INITIAL_TRAIN_COUNT = 12
+const INITIAL_TRAIN_COUNT = 11
 const WAITING_TRAIN_COUNT = 9
 let tokyoTurnbacksSinceLastDeadhead = 0
 
@@ -330,47 +330,6 @@ function trainDisplayDetails(train) {
   return `${displayTrainName(train)} / ${trainDirectionLabel(train)} / ${trackLabel(train.track)} / +${train.delay.toFixed(1)}分 / ${trainStatusLabel(train)}`
 }
 
-function leadTrainForGroup(group) {
-  return [...group].sort((a, b) => {
-    if (a.dir === 'right') return b.x - a.x
-    if (a.dir === 'left') return a.x - b.x
-    return a.x - b.x
-  })[0]
-}
-
-function groupTrainsForDisplay(trains) {
-  const groups = []
-
-  trains.forEach((train) => {
-    const group = groups.find(
-      (item) => item.track === train.track && Math.abs(item.x - train.x) < 2.8,
-    )
-
-    if (group) {
-      group.trains.push(train)
-      group.x = group.trains.reduce((sum, item) => sum + item.x, 0) / group.trains.length
-      return
-    }
-
-    groups.push({
-      id: `${train.track}-${Math.round(train.x)}`,
-      track: train.track,
-      x: train.x,
-      trains: [train],
-    })
-  })
-
-  return groups.map((group) => ({
-    ...group,
-    leadTrain: leadTrainForGroup(group.trains),
-    orderedTrains: [...group.trains].sort((a, b) => {
-      const sample = group.trains[0]
-      if (sample?.dir === 'right') return b.x - a.x
-      if (sample?.dir === 'left') return a.x - b.x
-      return a.x - b.x
-    }),
-  }))
-}
 
 function trackLabel(trackId) {
   return ROUTE_TRACKS.find((t) => t.id === trackId)?.name ?? '不明な線路'
@@ -865,6 +824,7 @@ export default function App() {
   const [trains, setTrains] = useState(() => generateInitialTrains())
   const [waitingTrains, setWaitingTrains] = useState(() => generateWaitingTrains())
   const [selectedTrainId, setSelectedTrainId] = useState(null)
+  const [selectedTrainGroup, setSelectedTrainGroup] = useState(null)
   const [upRouteOpenSeconds, setUpRouteOpenSeconds] = useState(0)
   const [running, setRunning] = useState(false)
   const [gameOver, setGameOver] = useState(false)
@@ -884,6 +844,33 @@ export default function App() {
   )
 
   const risk = useMemo(() => riskLevel(trains), [trains])
+
+  const selectedTrainGroupDetails = useMemo(() => {
+    if (!selectedTrainGroup) return null
+
+    const selectedTrains = selectedTrainGroup.trainIds
+      .map((id) => trains.find((train) => train.id === id))
+      .filter(Boolean)
+
+    if (selectedTrains.length === 0) return null
+
+    return {
+      ...selectedTrainGroup,
+      trains: selectedTrains,
+    }
+  }, [selectedTrainGroup, trains])
+
+  useEffect(() => {
+    if (!selectedTrainGroup) return
+
+    const hasVisibleTrain = selectedTrainGroup.trainIds.some((id) =>
+      trains.some((train) => train.id === id),
+    )
+
+    if (!hasVisibleTrain) {
+      setSelectedTrainGroup(null)
+    }
+  }, [selectedTrainGroup, trains])
 
   const formattedTime = `${String(Math.floor(time / 3600)).padStart(
     2,
@@ -1169,6 +1156,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     setWaitingTrains(generateWaitingTrains())
     tokyoTurnbacksSinceLastDeadhead = 0
     setSelectedTrainId(null)
+    setSelectedTrainGroup(null)
     setUpRouteOpenSeconds(0)
     setRunning(false)
     setGameOver(false)
@@ -1211,7 +1199,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     )}
       <header className="game-header">
         <div>
-          <p className="version">JRE Shinkansen Dispatch Simulator v1.1.3</p>
+          <p className="version">JRE Shinkansen Dispatch Simulator v2.0.0</p>
           <h1>
   <span className="title-main">JR東日本 新幹線</span>
   <span className="title-sub">遅延回復シミュレーター</span>
@@ -1311,45 +1299,47 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
                 </div>
               ))}
 
-              {groupTrainsForDisplay(trains).map((group) => {
-  const train = group.leadTrain
-const stationName = stationAt(train.x)
-const hasMultipleTrains = group.orderedTrains.length > 1
-const trackY = routeTrackById(train.track)?.y ?? 0
-const popupHorizontalClass = group.x > 72 ? 'popup-left' : group.x < 24 ? 'popup-right' : 'popup-center'
-const popupVerticalClass = trackY > 230 ? 'popup-above' : 'popup-below'
+              {trains.map((train) => {
+  const stationName = stationAt(train.x)
+  const trackY = routeTrackById(train.track)?.y ?? 0
+  const popupHorizontalClass = train.x > 72 ? 'popup-left' : train.x < 24 ? 'popup-right' : 'popup-center'
+  const popupVerticalClass = trackY > 230 ? 'popup-above' : 'popup-below'
 
-return (
-  <div
-    className={`train-wrap ${hasMultipleTrains ? 'train-wrap-cluster' : ''} ${popupHorizontalClass} ${popupVerticalClass}`}
-      key={group.orderedTrains.map((item) => item.id).join('-')}
+  return (
+    <button
+      type="button"
+      className={`train-wrap ${popupHorizontalClass} ${popupVerticalClass}`}
+      key={train.id}
       style={{
-        left: `${group.x}%`,
-        top:trackY - 23,
+        left: `${train.x}%`,
+        top: trackY - 23,
       }}
+      onClick={() =>
+        setSelectedTrainGroup({
+          title: '列車詳細',
+          trainIds: [train.id],
+        })
+      }
     >
       <div className={`train ${train.colorClass}`}>
         <div className="train-top compact">
           <strong>
             {displayTrainName(train)} / {trainDirectionLabel(train)} / {trainStatusLabel(train)}
           </strong>
-          {hasMultipleTrains && <span className="cluster-count">+{group.orderedTrains.length - 1}</span>}
           {(train.held || train.autoHeld) && <span className="hold-mark">×</span>}
           {!train.held && !train.autoHeld && train.dwellRemaining > 0 && <span>⏸</span>}
         </div>
       </div>
 
       <div className="train-detail-popup" role="tooltip">
-        <strong>{hasMultipleTrains ? '同位置の列車' : '列車詳細'}</strong>
+        <strong>列車詳細</strong>
         <ol>
-          {group.orderedTrains.map((item) => (
-            <li key={item.id}>{trainDisplayDetails(item)}</li>
-          ))}
+          <li>{trainDisplayDetails(train)}</li>
         </ol>
       </div>
 
       {stationName && <p className="near-station">{stationName}付近</p>}
-    </div>
+    </button>
   )
 })}
             </div>
@@ -1466,6 +1456,73 @@ return (
         停車後、前方が詰まっていなければ自動で発車し、前方が詰まっている場合は自動で抑止されます。
         上り本線が大宮〜上野間で5秒以上開通していると後続列車が先行入線します。適切な進路を構成しながら遅延回復を目指してください。
       </p>
+
+      {selectedTrainGroupDetails && (
+  <div className="mobile-train-group-panel" role="dialog" aria-label="スマホ版指令操作盤">
+    <div className="mobile-train-group-card mobile-operation-card">
+      <div className="mobile-train-group-head mobile-operation-head">
+  <strong>指令操作盤</strong>
+  <button
+    type="button"
+    className="mobile-operation-close"
+    aria-label="閉じる"
+    onClick={() => setSelectedTrainGroup(null)}
+  >
+    ×
+  </button>
+</div>
+
+      <ol className="mobile-train-group-list mobile-operation-list">
+        {selectedTrainGroupDetails.trains.map((train) => (
+          <li key={train.id}>
+            <div className="mobile-operation-train-head">
+              <strong>{displayTrainName(train)}</strong>
+              <span>{trainDirectionLabel(train)} / +{train.delay.toFixed(1)}分 / {trainStatusLabel(train)}</span>
+              <span>現在進路: {trackLabel(train.track)}</span>
+              <span>指定番線: {platformLabel(train.assignedPlatform)}</span>
+              {operationWarnings[train.id] && (
+                <span className="mobile-operation-warning">⚠ {operationWarnings[train.id]}</span>
+              )}
+            </div>
+
+            <div className="mobile-operation-section">
+              <strong>進路を構成</strong>
+              <div className="mobile-track-buttons">
+                {ROUTE_TRACKS.map((track) => (
+                  <button
+                    type="button"
+                    key={track.id}
+                    className={train.track === track.id ? 'selected' : ''}
+                    onClick={() => changeTrack(train.id, track.id)}
+                  >
+                    {track.shortName}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mobile-train-group-actions mobile-operation-actions">
+              <button
+                type="button"
+                className={train.held ? 'hold-button active' : 'hold-button'}
+                onClick={() => toggleHold(train.id)}
+              >
+                {train.held ? '抑止解除' : '抑止'}
+              </button>
+              <button
+                type="button"
+                className={train.priority ? 'priority-button active' : 'priority-button'}
+                onClick={() => priorityBoost(train.id)}
+              >
+                {train.priority ? '優先解除' : '優先'}
+              </button>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+    </div>
+)}
     </main>
   )
 }
