@@ -1751,11 +1751,16 @@ button {
 }
 
 .tutorial-body p {
-  margin: 0;
+  width: min(100%, 38em);
+  margin: 0 auto;
   color: #18181b;
   font-size: 15px;
   font-weight: 600;
   line-height: 1.75;
+  text-align: center;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
 .tutorial-progress {
@@ -2278,11 +2283,15 @@ button {
   }
 
   .tutorial-body p {
-    max-width: 24em;
+    width: min(100%, 28em);
+    max-width: 100%;
     margin: 0 auto;
     font-size: 12px;
-    line-height: 1.75;
+    line-height: 1.85;
     text-align: center;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
   }
 
   .tutorial-progress {
@@ -2309,6 +2318,20 @@ button {
   }
 }
 
+@media (min-width: 721px) and (max-width: 1180px) {
+  .tutorial-card {
+    width: min(620px, 88vw);
+  }
+
+  .tutorial-body p {
+    width: min(100%, 35em);
+    line-height: 1.8;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+  }
+}
+
 @media (max-width: 380px) {
   .tutorial-card {
     width: min(100%, 340px);
@@ -2323,6 +2346,12 @@ button {
     min-height: 36px;
     padding: 7px 8px;
     font-size: 11px;
+  }
+
+  .tutorial-body p {
+    width: min(100%, 25em);
+    font-size: 11.5px;
+    line-height: 1.85;
   }
 }
 

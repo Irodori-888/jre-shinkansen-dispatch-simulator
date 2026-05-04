@@ -102,6 +102,10 @@ const TUTORIAL_STEPS = [
     body: '列車の位置・方向・状態を確認できます。列車をクリックまたはタップすると指令操作盤が開きます。',
   },
   {
+    title: '線路と進行方向',
+    body: '上り列車は大宮方面から東京方面へ、下り列車は東京方面から大宮方面へ進みます。大宮付近には上り・下りそれぞれに副本線があり、列車を待避させたり進路を整理したりするときに活用できます。',
+  },
+  {
     title: '指令操作盤',
     body: '列車を選ぶと、列車名・遅延時間・列車の状態・現在進路を確認できます。進路を変える場合は分岐点付近で操作します。必要に応じて抑止と優先を使い分けましょう。',
   },
@@ -116,6 +120,10 @@ const TUTORIAL_STEPS = [
   {
     title: '安全リスク',
     body: '列車同士が近づきすぎると安全リスクが上がります。安全リスクが13に達するとゲームオーバーです。',
+  },
+  {
+    title: '始業前点呼',
+    body: 'ここからは、あなたの判断が列車の流れを左右します。安全を守りながら、東京〜大宮間の運行を整理し、遅延回復に挑みましょう。',
   },
 ]
 
@@ -952,7 +960,7 @@ export default function App() {
   const [trains, setTrains] = useState(() => generateInitialTrains())
   const [waitingTrains, setWaitingTrains] = useState(() => generateWaitingTrains())
   const [selectedTrainGroup, setSelectedTrainGroup] = useState(null)
-  const [selectedWaitingTrain, setSelectedWaitingTrain] = useState(null)
+  // const [selectedWaitingTrain, setSelectedWaitingTrain] = useState(null)
   const [waitingListOpen, setWaitingListOpen] = useState(false)
   const [upRouteOpenSeconds, setUpRouteOpenSeconds] = useState(0)
   const [running, setRunning] = useState(false)
@@ -1006,11 +1014,11 @@ export default function App() {
       setOperationWarnings({})
     }
   }, [selectedTrainGroup, trains])
-  const selectedWaitingTrainDetails = useMemo(() => {
-    if (!selectedWaitingTrain) return null
-
-    return waitingTrains.find((train) => train.id === selectedWaitingTrain.id) ?? selectedWaitingTrain
-  }, [selectedWaitingTrain, waitingTrains])
+  // const selectedWaitingTrainDetails = useMemo(() => {
+  //   if (!selectedWaitingTrain) return null
+  //
+  //   return waitingTrains.find((train) => train.id === selectedWaitingTrain.id) ?? selectedWaitingTrain
+  // }, [selectedWaitingTrain, waitingTrains])
 
   const currentTutorialStep = TUTORIAL_STEPS[tutorialStep] ?? TUTORIAL_STEPS[0]
   const isLastTutorialStep = tutorialStep === TUTORIAL_STEPS.length - 1
@@ -1302,7 +1310,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     setWaitingTrains(generateWaitingTrains())
     tokyoTurnbacksSinceLastDeadhead = 0
     setSelectedTrainGroup(null)
-    setSelectedWaitingTrain(null)
+    // setSelectedWaitingTrain(null)
     setWaitingListOpen(false)
     setUpRouteOpenSeconds(0)
     setRunning(false)
@@ -1618,10 +1626,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
               <button
                 type="button"
                 aria-label="閉じる"
-                onClick={() => {
-                  setWaitingListOpen(false)
-                  setSelectedWaitingTrain(null)
-                }}
+                onClick={() => setWaitingListOpen(false)}
               >
                 ×
               </button>
@@ -1629,47 +1634,18 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
 
             <div className="waiting-train-modal-list">
               {waitingTrains.map((train) => (
-                <button
-                  type="button"
+                <div
                   className="waiting-train-modal-item"
                   key={train.id}
-                  onClick={() => setSelectedWaitingTrain(train)}
                 >
                   <strong>{waitingTrainNameBadge(train.name)}</strong>
                   <span>{train.direction === 'up' ? '上り' : '下り'} / {train.targetTrack}</span>
                   <p>{train.status}・{waitingTrainEtaLabel(train)} / 想定遅延 +{(train.delay ?? 0).toFixed(1)}分</p>
-                </button>
+                </div>
               ))}
             </div>
 
-            {selectedWaitingTrainDetails && (
-              <dl className="waiting-train-modal-details">
-                <div>
-                  <dt>選択中</dt>
-                  <dd>{waitingTrainNameBadge(selectedWaitingTrainDetails.name)}</dd>
-                </div>
-                <div>
-                  <dt>方向</dt>
-                  <dd>{selectedWaitingTrainDetails.direction === 'up' ? '上り' : '下り'}</dd>
-                </div>
-                <div>
-                  <dt>入線予定</dt>
-                  <dd>{waitingTrainEtaLabel(selectedWaitingTrainDetails)}</dd>
-                </div>
-                <div>
-                  <dt>入線先</dt>
-                  <dd>{selectedWaitingTrainDetails.targetTrack}</dd>
-                </div>
-                <div>
-                  <dt>状態</dt>
-                  <dd>{selectedWaitingTrainDetails.status}</dd>
-                </div>
-                <div>
-                  <dt>想定遅延</dt>
-                  <dd>+{(selectedWaitingTrainDetails.delay ?? 0).toFixed(1)}分</dd>
-                </div>
-              </dl>
-            )}
+
           </div>
         </div>
       )}
