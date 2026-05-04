@@ -1582,7 +1582,6 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
             <div className="waiting-panel">
               <div className="waiting-panel-head">
                 <strong>後続列車</strong>
-                <span>大宮方面 → 上り本線へ接近予定</span>
               </div>
               <div className="waiting-trains waiting-trains-launcher">
                 <button
@@ -1592,7 +1591,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
                 >
                   <strong>後続列車一覧を開く</strong>
                   <span>{waitingTrains.length}本が大宮方面から接近中</span>
-                  <p>クリックして到着予定・入線先を確認</p>
+                  <p>タップ/クリックして到着予定・入線先を確認</p>
                 </button>
               </div>
             </div>
@@ -1621,7 +1620,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
             <div className="waiting-train-modal-head">
               <div>
                 <strong>後続列車一覧</strong>
-                <span>大宮方面 → 上り本線へ接近予定</span>
+                <span>大宮方面から上り本線へ入線する列車です</span>
               </div>
               <button
                 type="button"
