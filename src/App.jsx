@@ -1134,68 +1134,68 @@ export default function App() {
 
         setUpRouteOpenSeconds(0)
 
-        setWaitingTrains((waitingPrev) => {
-          const updatedWaitingTrains = waitingPrev.map((waitingTrain) => {
-            const nextEtaSeconds = Math.max(0, (waitingTrain.etaSeconds ?? 0) - 1)
-            return {
-              ...waitingTrain,
-              etaSeconds: nextEtaSeconds,
-              status: nextEtaSeconds > 0 ? '接近中' : '入線待ち',
-              eta: nextEtaSeconds > 0 ? `約${Math.ceil(nextEtaSeconds / 60)}分後` : '入線可能',
-              delay: Math.max(0, Number(((waitingTrain.delay ?? 0) - (earlyAdmissionTriggered ? 0.3 : 0)).toFixed(1))),
-            }
-          })
+        const updatedWaitingTrains = waitingTrains.map((waitingTrain) => {
+          const nextEtaSeconds = Math.max(0, (waitingTrain.etaSeconds ?? 0) - 1)
+          return {
+            ...waitingTrain,
+            etaSeconds: nextEtaSeconds,
+            status: nextEtaSeconds > 0 ? '接近中' : '入線待ち',
+            eta: nextEtaSeconds > 0 ? `約${Math.ceil(nextEtaSeconds / 60)}分後` : '入線可能',
+            delay: Math.max(0, Number(((waitingTrain.delay ?? 0) - (earlyAdmissionTriggered ? 0.3 : 0)).toFixed(1))),
+          }
+        })
 
-          const admitIndex = earlyAdmissionTriggered
-            ? updatedWaitingTrains
-                .map((waitingTrain, index) => ({ waitingTrain, index }))
-                .sort((a, b) => (a.waitingTrain.etaSeconds ?? 0) - (b.waitingTrain.etaSeconds ?? 0))
-                .find(({ waitingTrain }) => canEarlyAdmitWaitingTrain(waitingTrain, next))?.index ?? -1
-            : updatedWaitingTrains.findIndex((waitingTrain) =>
-                canAdmitWaitingTrain(waitingTrain, next),
-              )
-
-          let remainingWaitingTrains = updatedWaitingTrains
-
-          if (admitIndex !== -1) {
-            const earlyAdmissionTrack = earlyAdmissionTriggered
-              ? availableUpAdmissionTrackShortName(next)
-              : null
-            const admittedWaitingTrain = {
-              ...updatedWaitingTrains[admitIndex],
-              targetTrack: earlyAdmissionTrack ?? updatedWaitingTrains[admitIndex].targetTrack,
-              etaSeconds: 0,
-              status: '入線待ち',
-              eta: '入線可能',
-            }
-            const admittedTrain = activeTrainFromWaitingTrain(admittedWaitingTrain)
-            next = markOmiyaDepartureEarlyAdmissionUsed(next)
-            next = earlyAdmissionTriggered
-              ? next.map((train) => reduceDelayForEarlyAdmission(train))
-              : next
-
-            const alreadyAdmitted = next.some((train) => train.id === admittedTrain.id)
-            if (!alreadyAdmitted) {
-              next = [...next, admittedTrain]
-            }
-            addEvent(
-              earlyAdmissionTriggered
-                ? `${formattedTime} ${admittedWaitingTrain.name}: 上り進路開通により先行入線`
-                : `${formattedTime} ${admittedWaitingTrain.name}: 大宮方面から入線`,
+        const admitIndex = earlyAdmissionTriggered
+          ? updatedWaitingTrains
+              .map((waitingTrain, index) => ({ waitingTrain, index }))
+              .sort((a, b) => (a.waitingTrain.etaSeconds ?? 0) - (b.waitingTrain.etaSeconds ?? 0))
+              .find(({ waitingTrain }) => canEarlyAdmitWaitingTrain(waitingTrain, next))?.index ?? -1
+          : updatedWaitingTrains.findIndex((waitingTrain) =>
+              canAdmitWaitingTrain(waitingTrain, next),
             )
 
-            remainingWaitingTrains = updatedWaitingTrains.filter((_, index) => index !== admitIndex)
+        let remainingWaitingTrains = updatedWaitingTrains
+        let admittedEventText = null
+
+        if (admitIndex !== -1) {
+          const earlyAdmissionTrack = earlyAdmissionTriggered
+            ? availableUpAdmissionTrackShortName(next)
+            : null
+          const admittedWaitingTrain = {
+            ...updatedWaitingTrains[admitIndex],
+            targetTrack: earlyAdmissionTrack ?? updatedWaitingTrains[admitIndex].targetTrack,
+            etaSeconds: 0,
+            status: '入線待ち',
+            eta: '入線可能',
+          }
+          const admittedTrain = activeTrainFromWaitingTrain(admittedWaitingTrain)
+          next = markOmiyaDepartureEarlyAdmissionUsed(next)
+          next = earlyAdmissionTriggered
+            ? next.map((train) => reduceDelayForEarlyAdmission(train))
+            : next
+
+          const alreadyAdmitted = next.some((train) => train.id === admittedTrain.id)
+          if (!alreadyAdmitted) {
+            next = [...next, admittedTrain]
+            admittedEventText = earlyAdmissionTriggered
+              ? `${formattedTime} ${admittedWaitingTrain.name}: 上り進路開通により先行入線`
+              : `${formattedTime} ${admittedWaitingTrain.name}: 大宮方面から入線`
           }
 
-          while (remainingWaitingTrains.length < WAITING_TRAIN_COUNT) {
-            remainingWaitingTrains = [
-              ...remainingWaitingTrains,
-              generateAdditionalWaitingTrain(remainingWaitingTrains),
-            ]
-          }
+          remainingWaitingTrains = updatedWaitingTrains.filter((_, index) => index !== admitIndex)
+        }
 
-          return remainingWaitingTrains
-        })
+        while (remainingWaitingTrains.length < WAITING_TRAIN_COUNT) {
+          remainingWaitingTrains = [
+            ...remainingWaitingTrains,
+            generateAdditionalWaitingTrain(remainingWaitingTrains),
+          ]
+        }
+
+        setWaitingTrains(remainingWaitingTrains)
+        if (admittedEventText) {
+          addEvent(admittedEventText)
+        }
 
         const nextRisk = riskLevel(next)
         const nextTotalDelay = next.reduce((sum, t) => sum + t.delay, 0)
@@ -1245,7 +1245,7 @@ export default function App() {
     }, 1000)
 
     return () => window.clearInterval(intervalId)
-  }, [running, gameOver, gameClear, formattedTime, upRouteOpenSeconds])
+  }, [running, gameOver, gameClear, formattedTime, upRouteOpenSeconds, waitingTrains])
 
 
   const addEvent = (text) => {
