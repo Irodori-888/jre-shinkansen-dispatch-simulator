@@ -700,7 +700,7 @@ function switchXsForTrack(targetTrack, train = null) {
     currentTrack.id !== targetTrack.id
 
   if (isOmiyaSideTrack || (isNearOmiyaArea && isSameDirectionMainlineTransfer)) return [64, 85]
-  if (isTokyoTerminalMainTrack(targetTrack)) return [28, 50]
+  if (isTokyoTerminalMainTrack(targetTrack) || isTokyoTerminalMainTrack(currentTrack)) return [28, 50]
   return []
 }
 
@@ -718,8 +718,14 @@ function canChangeTrackAtCurrentPosition(train, targetTrack) {
     !currentTrack.id.includes('omiya') &&
     !targetTrack.id.includes('omiya') &&
     currentTrack.id !== targetTrack.id
+  const isTokyoUenoMainTrackTransfer =
+    isTokyoTerminalMainTrack(targetTrack) || isTokyoTerminalMainTrack(currentTrack)
   const switchXs = switchXsForTrack(targetTrack, train)
-  const tolerance = isOmiyaSideTrack || (isNearOmiyaArea && isSameDirectionMainlineTransfer) ? 18 : 10
+  const tolerance = isOmiyaSideTrack || (isNearOmiyaArea && isSameDirectionMainlineTransfer)
+    ? 18
+    : isTokyoUenoMainTrackTransfer
+      ? 16
+      : 10
 
   return switchXs.some((x) => Math.abs(train.x - x) <= tolerance)
 }
@@ -1392,7 +1398,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     )}
       <header className="game-header">
         <div>
-          <p className="version">JRE Shinkansen Dispatch Simulator v2.0.0</p>
+          <p className="version">JRE Shinkansen Dispatch Simulator v2.0.1</p>
           <h1>
   <span className="title-main">JR東日本 新幹線</span>
   <span className="title-sub">遅延回復シミュレーター</span>

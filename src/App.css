@@ -2014,3 +2014,225 @@ button {
 .waiting-train-modal-details .train-name-separator {
   color: #18181b;
 }
+
+/* Tablet UX optimization */
+@media (min-width: 721px) and (max-width: 1180px) {
+  .game {
+    padding: 18px;
+  }
+
+  .game-header {
+    margin-bottom: 28px;
+  }
+
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .stats-actions {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    max-width: 520px;
+    width: 100%;
+    min-height: 68px;
+    margin: 0 auto;
+  }
+
+  .stats-actions .primary-button,
+  .stats-actions .secondary-button {
+    width: 100%;
+    min-height: 52px;
+  }
+
+  .rail-panel,
+  .log-panel {
+    border-radius: 24px;
+  }
+
+  .rail-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .rail-scroll > .rail-map {
+    min-width: 980px;
+  }
+
+  .waiting-train-modal-card,
+  .pc-train-operation-card {
+    width: min(760px, 90vw);
+    max-height: min(78vh, 720px);
+  }
+
+  .waiting-train-modal-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Railway map style: black-and-white continuous route lines */
+.track-line,
+.omiya-extra-track-row .track-line,
+.route-switch i {
+  background:
+    repeating-linear-gradient(
+      90deg,
+      #18181b 0 12px,
+      #ffffff 12px 18px,
+      #18181b 18px 30px
+    ) !important;
+  border: 1px solid #18181b;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+}
+
+.route-switch i {
+  background:
+    repeating-linear-gradient(
+      180deg,
+      #18181b 0 12px,
+      #ffffff 12px 18px,
+      #18181b 18px 30px
+    ) !important;
+}
+
+@media (max-width: 720px) {
+  .track-line,
+  .omiya-extra-track-row .track-line,
+  .route-switch i {
+    background:
+      repeating-linear-gradient(
+        90deg,
+        #18181b 0 10px,
+        #ffffff 10px 15px,
+        #18181b 15px 25px
+      ) !important;
+  }
+
+  .route-switch i {
+    background:
+      repeating-linear-gradient(
+        180deg,
+        #18181b 0 10px,
+        #ffffff 10px 15px,
+        #18181b 15px 25px
+      ) !important;
+  }
+}
+
+/* iPad/tablet viewport width optimization */
+@media (min-width: 721px) and (max-width: 1180px) {
+  .game {
+    width: 100%;
+    padding-left: clamp(14px, 2.2vw, 24px);
+    padding-right: clamp(14px, 2.2vw, 24px);
+  }
+
+  .game-header,
+  .stats,
+  .main-layout,
+  .log-panel,
+  .help {
+    width: 100%;
+    max-width: none;
+  }
+
+  .stats {
+    justify-content: stretch;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .stats-actions {
+    grid-column: 1 / -1;
+    justify-self: center;
+    max-width: min(560px, 100%);
+    margin-left: 0;
+  }
+
+  .rail-panel,
+  .waiting-panel,
+  .log-panel {
+    width: 100%;
+  }
+
+  .rail-scroll > .rail-map {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 900px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rail-scroll {
+    overflow-x: auto;
+  }
+
+  .rail-scroll > .rail-map {
+    width: 980px;
+    min-width: 980px;
+  }
+}
+
+/* Restore desktop stats action position / center actions on iPad-sized layouts */
+@media (min-width: 1025px) {
+  .stats {
+    max-width: 1280px;
+    grid-template-columns: repeat(4, minmax(150px, 180px)) minmax(290px, auto);
+    justify-content: start;
+    align-items: stretch;
+    column-gap: 18px;
+    row-gap: 12px;
+  }
+
+  .stats-actions {
+    grid-column: auto;
+    justify-self: auto;
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    width: auto;
+    max-width: none;
+    min-height: 92px;
+    margin-left: 14px;
+    padding: 10px;
+    border-radius: 22px;
+  }
+
+  .stats-actions .primary-button,
+  .stats-actions .secondary-button {
+    width: auto;
+    min-width: 118px;
+    height: 100%;
+    min-height: 50px;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1024px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+  }
+
+  .stats-actions {
+    grid-column: 1 / -1;
+    justify-self: center;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: min(560px, 100%);
+    max-width: 560px;
+    min-height: 64px;
+    margin: 0 auto;
+    padding: 8px;
+    border-radius: 20px;
+  }
+
+  .stats-actions .primary-button,
+  .stats-actions .secondary-button {
+    width: 100%;
+    min-height: 52px;
+  }
+}
