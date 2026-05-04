@@ -165,7 +165,6 @@ button {
 }
 
 .rail-panel,
-.control-panel,
 .log-panel {
   background: white;
   border: 1px solid #e4e4e7;
@@ -762,12 +761,6 @@ button {
 .rail-map {
   height: 360px;
   min-height: 360px;
-}
-
-@media (max-width: 720px) {
-  .waiting-scroll {
-    border-top: 1px solid #e4e4e7;
-  }
 }
 
 .rail-panel::before {
@@ -2533,6 +2526,236 @@ body {
   }
 }
 
-.control-panel {
-  display: none !important;
+/* Smooth separation between operation board and waiting train board */
+.rail-panel {
+  border-radius: 28px;
+  overflow: hidden;
+}
+
+.rail-scroll {
+  border-bottom-left-radius: 28px;
+  border-bottom-right-radius: 28px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.rail-map {
+  border-bottom-left-radius: 28px;
+  border-bottom-right-radius: 28px;
+}
+
+.message {
+  margin-top: 0;
+  border-top: 1px solid #e4e4e7;
+  border-bottom: 1px solid #e4e4e7;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.waiting-scroll-hint {
+  margin-top: 0;
+  border-radius: 0 0 28px 28px;
+  background: #f8fafc;
+}
+
+.waiting-scroll {
+  margin-top: 14px;
+}
+
+.waiting-panel {
+  border-top: 0;
+  border-radius: 24px;
+  overflow: hidden;
+}
+
+@media (max-width: 720px) {
+  .rail-panel {
+    border-radius: 22px;
+    overflow: hidden;
+  }
+
+  .rail-scroll,
+  .rail-map {
+    border-bottom-left-radius: 22px;
+    border-bottom-right-radius: 22px;
+  }
+
+  .message {
+    padding: 18px 16px;
+    line-height: 1.65;
+  }
+
+  .waiting-scroll-hint {
+    border-radius: 0 0 22px 22px;
+  }
+
+  .waiting-scroll {
+    margin-top: 12px;
+  }
+
+  .waiting-panel {
+    border-radius: 22px;
+  }
+}
+
+/* Separate waiting train board from the main operation board */
+.rail-panel {
+  overflow: hidden;
+}
+
+.rail-panel .message {
+  margin-top: 0;
+  border-top: 1px solid #e4e4e7;
+  border-bottom: 0;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.waiting-board {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid #e4e4e7;
+  border-radius: 28px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
+}
+
+.waiting-board .waiting-scroll-hint {
+  margin-top: 0;
+  border: 0;
+  border-bottom: 1px solid #e4e4e7;
+  border-radius: 0;
+  background: #f8fafc;
+}
+
+.waiting-board .waiting-scroll {
+  margin-top: 0;
+}
+
+.waiting-board .waiting-panel {
+  border-top: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+@media (max-width: 720px) {
+  .waiting-board {
+    border-radius: 22px;
+  }
+
+  .rail-panel .message {
+    padding: 18px 16px;
+    line-height: 1.65;
+  }
+
+  .waiting-board .waiting-scroll-hint {
+    border-radius: 0;
+  }
+
+  .waiting-board .waiting-panel {
+    border-radius: 0;
+  }
+}
+/* Mobile rail board height refinement */
+@media (max-width: 720px) {
+  .rail-scroll > .rail-map {
+    height: 360px !important;
+    min-height: 360px !important;
+  }
+
+  .rail-panel .message {
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  .rail-scroll > .rail-map {
+    height: 340px !important;
+    min-height: 340px !important;
+  }
+}
+
+/* Station-area switch markers */
+.stations {
+  position: relative;
+}
+
+.station-switch-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(24, 24, 27, 0.72);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.station {
+  z-index: 1;
+}
+
+@media (max-width: 720px) {
+  .station-switch-marker {
+    width: 1.5px;
+    background: rgba(24, 24, 27, 0.62);
+  }
+}
+
+/* Station marker layer and lower interval markers */
+.stations {
+  z-index: 1;
+}
+
+.station-switch-marker {
+  z-index: 0;
+}
+
+.station {
+  position: absolute;
+  z-index: 2;
+}
+
+.track-row,
+.omiya-extra-track-row,
+.route-switch {
+  z-index: 2;
+}
+
+.train-wrap {
+  z-index: 6;
+}
+
+.lower-station-switch-markers {
+  position: absolute;
+  left: 32px;
+  right: 32px;
+  bottom: 18px;
+  height: 34px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.lower-station-switch-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(24, 24, 27, 0.72);
+}
+
+@media (max-width: 720px) {
+  .lower-station-switch-markers {
+    left: 32px;
+    right: 32px;
+    bottom: 16px;
+    height: 28px;
+  }
+
+  .lower-station-switch-marker {
+    width: 1.5px;
+    background: rgba(24, 24, 27, 0.62);
+  }
 }

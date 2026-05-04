@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
+const UPPER_STATION_AREA_SWITCH_MARKERS = [26.5, 45, 63.5, 80]
+const LOWER_STATION_AREA_SWITCH_MARKERS = [28.1, 47.8, 67, 84.7]
+const STATION_LABEL_POSITIONS = {
+  ueno: (UPPER_STATION_AREA_SWITCH_MARKERS[0] + UPPER_STATION_AREA_SWITCH_MARKERS[1]) / 2,
+  omiya: (UPPER_STATION_AREA_SWITCH_MARKERS[2] + UPPER_STATION_AREA_SWITCH_MARKERS[3]) / 2,
+}
+
 const STATIONS = [
   {
     id: 'tokyo',
@@ -20,7 +27,7 @@ const STATIONS = [
     id: 'ueno',
     name: '上野',
     x: 38,
-    labelX: 38,
+    labelX: STATION_LABEL_POSITIONS.ueno,
     stopX: 38,
     platforms: 2,
     tracks: [
@@ -34,7 +41,7 @@ const STATIONS = [
     id: 'omiya',
     name: '大宮',
     x: 75,
-    labelX: 75,
+    labelX: STATION_LABEL_POSITIONS.omiya,
     stopX: 75,
     platforms: 3,
     tracks: [
@@ -77,6 +84,7 @@ const SWITCH_POINTS = [
   { id: 'omiya-north-down-extra-in', label: '大宮以北 下り本線↔副本線 入口', direction: 'down', x: 64, top: 204, height: 88 },
   { id: 'omiya-north-down-extra-out', label: '大宮以北 下り本線↔副本線 出口', direction: 'down', x: 85, top: 204, height: 88 },
 ]
+
 
 const TOKYO_TERMINAL_LIMIT_X = 30
 const TOKYO_TERMINAL_DOWN_LIMIT_X = 24
@@ -1386,7 +1394,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     )}
       <header className="game-header">
         <div>
-          <p className="version">JRE Shinkansen Dispatch Simulator v2.0.1</p>
+          <p className="version">JRE Shinkansen Dispatch Simulator v2.1.0</p>
           <h1>
   <span className="title-main">JR東日本 新幹線</span>
   <span className="title-sub">遅延回復シミュレーター</span>
@@ -1436,6 +1444,15 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
           <div className="rail-scroll">
             <div className="rail-map">
               <div className="stations">
+                {UPPER_STATION_AREA_SWITCH_MARKERS.map((x) => (
+                  <div
+                    className="station-switch-marker"
+                    key={`station-switch-marker-${x}`}
+                    aria-hidden="true"
+                    style={{ left: `${x}%` }}
+                  />
+                ))}
+
                 {STATIONS.map((station) => (
                   <div
                     className="station"
@@ -1532,6 +1549,16 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     </button>
   )
 })}
+
+              <div className="lower-station-switch-markers" aria-hidden="true">
+                {LOWER_STATION_AREA_SWITCH_MARKERS.map((x) => (
+                  <div
+                    className="lower-station-switch-marker"
+                    key={`lower-station-switch-marker-${x}`}
+                    style={{ left: `${x}%` }}
+                  />
+                ))}
+              </div>
             </div>
           </div>
 
@@ -1539,7 +1566,9 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
             <span>⚠</span>
             <p>{message}</p>
           </div>
+        </div>
 
+        <div className="waiting-board">
           <p className="scroll-hint waiting-scroll-hint">後続列車案内は横にスクロールできます</p>
           <div className="waiting-scroll">
             <div className="waiting-panel">
