@@ -2236,3 +2236,23 @@ button {
     min-height: 52px;
   }
 }
+ 
+/* Mobile tutorial text alignment */
+@media (max-width: 720px) {
+  .tutorial-body {
+    justify-items: center;
+    text-align: center;
+  }
+
+  .tutorial-body strong,
+  .tutorial-body p {
+    width: 100%;
+    max-width: 100%;
+    text-align: center;
+  }
+
+  .tutorial-body p {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
