@@ -1153,10 +1153,14 @@ export default function App() {
               eta: '入線可能',
             }
             const admittedTrain = activeTrainFromWaitingTrain(admittedWaitingTrain)
-            next = next.map((train) =>
-              earlyAdmissionTriggered ? reduceDelayForEarlyAdmission(train) : train,
-            )
-            next.push(admittedTrain)
+            setTrains((currentTrains) => {
+              const alreadyAdmitted = currentTrains.some((train) => train.id === admittedTrain.id)
+              const adjustedTrains = earlyAdmissionTriggered
+                ? currentTrains.map((train) => reduceDelayForEarlyAdmission(train))
+                : currentTrains
+
+              return alreadyAdmitted ? adjustedTrains : [...adjustedTrains, admittedTrain]
+            })
             addEvent(
               earlyAdmissionTriggered
                 ? `${formattedTime} ${admittedWaitingTrain.name}: 上り進路開通により先行入線`
