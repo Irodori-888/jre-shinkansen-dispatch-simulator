@@ -3009,3 +3009,52 @@ body {
   margin-right: auto;
   text-align: center;
 }
+
+/* PC/tablet operation route buttons: subtle up/down divider */
+@media (min-width: 721px) {
+  .pc-track-buttons {
+    position: relative;
+  }
+
+  .pc-track-buttons::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 6px;
+    right: 6px;
+    height: 1px;
+    transform: translateY(-50%);
+    border-radius: 999px;
+    background: rgba(24, 24, 27, 0.22);
+    pointer-events: none;
+  }
+
+  .pc-track-buttons .operation-track-column {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+
+/* Track labels: independent label layer to avoid overlapping route lines */
+.track-name-label {
+  position: absolute;
+  display: inline-block;
+  transform: translateX(-50%);
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #52525b;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  z-index: 3;
+  pointer-events: none;
+}
+
+@media (max-width: 720px) {
+  .track-name-label {
+    padding: 1px 4px;
+    font-size: 10px;
+  }
+}

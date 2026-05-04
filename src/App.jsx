@@ -60,15 +60,15 @@ function stationLabelX(station) {
 }
 
 const TRACKS = [
-  { id: 'up-main', name: '上り本線1・東京方面', shortName: '上り本線1', direction: 'up', y: 72 },
-  { id: 'up-sub', name: '上り本線2・東京方面', shortName: '上り本線2', direction: 'up', y: 112 },
-  { id: 'down-main', name: '下り本線1・大宮方面', shortName: '下り本線1', direction: 'down', y: 204 },
-  { id: 'down-sub', name: '下り本線2・大宮方面', shortName: '下り本線2', direction: 'down', y: 252 },
+  { id: 'up-main', name: '上り本線1・東京方面', shortName: '上り本線1', direction: 'up', y: 72, labelPosition: 'outer-top', labelY: 48, labelX: 50 },
+  { id: 'up-sub', name: '上り本線2・東京方面', shortName: '上り本線2', direction: 'up', y: 112, labelPosition: 'outer-bottom', labelY: 132, labelX: 50 },
+  { id: 'down-main', name: '下り本線1・大宮方面', shortName: '下り本線1', direction: 'down', y: 204, labelPosition: 'outer-top', labelY: 180, labelX: 50 },
+  { id: 'down-sub', name: '下り本線2・大宮方面', shortName: '下り本線2', direction: 'down', y: 252, labelPosition: 'outer-bottom', labelY: 272, labelX: 50 },
 ]
 
 const OMIYA_EXTRA_TRACKS = [
-  { id: 'omiya-up-extra', name: '大宮上り副本線', shortName: '大宮上り副本線', direction: 'up', y: 152, startX: 63.7, endX: 85.2 },
-  { id: 'omiya-down-extra', name: '大宮下り副本線', shortName: '大宮下り副本線', direction: 'down', y: 292, startX: 63.7, endX: 85.2 },
+  { id: 'omiya-up-extra', name: '大宮上り副本線', shortName: '大宮上り副本線', direction: 'up', y: 152, startX: 63.7, endX: 85.3, labelPosition: 'outer-bottom', labelY: 162, labelX: 74.5 },
+  { id: 'omiya-down-extra', name: '大宮下り副本線', shortName: '大宮下り副本線', direction: 'down', y: 292, startX: 63.7, endX: 85.3, labelPosition: 'outer-bottom', labelY: 312, labelX: 74.5 },
 ]
 
 
@@ -103,7 +103,7 @@ const TOKYO_TERMINAL_DOWN_LIMIT_X = 24
 
 const INITIAL_TRAIN_COUNT = 11
 const WAITING_TRAIN_COUNT = 9
-const EARLY_ADMISSION_OPEN_SECONDS = 2
+const EARLY_ADMISSION_AFTER_OMIYA_DEPARTURE_SECONDS = 35
 const HOLD_RISK_TRAIN_COUNT = 2
 const LONG_HOLD_RISK_SECONDS = 60
 let tokyoTurnbacksSinceLastDeadhead = 0
@@ -284,6 +284,8 @@ function generateInitialTrains(count = INITIAL_TRAIN_COUNT) {
       colorClass: colorClassForTrainType(rule.type),
       plan: createTrainPlan(direction, assignedPlatform),
       stoppedStations: index < TRACKS.length ? [] : undefined,
+      omiyaDepartureSeconds: null,
+      earlyAdmissionTriggeredByOmiyaDeparture: false,
     }
   }
 
@@ -492,6 +494,56 @@ function availableUpAdmissionTrackShortName(activeTrains) {
   }) ?? null
 }
 
+function isOmiyaUpAdmissionSourceTrack(trackId) {
+  return ['up-main', 'up-sub', 'omiya-up-extra'].includes(trackId)
+}
+
+function hasDepartedOmiyaOnUpTrack(train) {
+  const omiya = STATIONS.find((station) => station.id === 'omiya')
+  const omiyaStopX = omiya?.stopX ?? omiya?.x ?? 75
+
+  return (
+    train?.direction === 'up' &&
+    isOmiyaUpAdmissionSourceTrack(train.track) &&
+    train.stoppedStations?.includes('omiya') &&
+    train.x < omiyaStopX - 1
+  )
+}
+
+function updateOmiyaDepartureTimer(train) {
+  if (!hasDepartedOmiyaOnUpTrack(train)) {
+    return {
+      ...train,
+      omiyaDepartureSeconds: null,
+      earlyAdmissionTriggeredByOmiyaDeparture: false,
+    }
+  }
+
+  return {
+    ...train,
+    omiyaDepartureSeconds: (train.omiyaDepartureSeconds ?? 0) + 1,
+  }
+}
+
+function hasOmiyaDepartureEarlyAdmissionTrigger(activeTrains) {
+  return activeTrains.some(
+    (train) =>
+      hasDepartedOmiyaOnUpTrack(train) &&
+      !train.earlyAdmissionTriggeredByOmiyaDeparture &&
+      (train.omiyaDepartureSeconds ?? 0) >= EARLY_ADMISSION_AFTER_OMIYA_DEPARTURE_SECONDS,
+  )
+}
+
+function markOmiyaDepartureEarlyAdmissionUsed(activeTrains) {
+  return activeTrains.map((train) =>
+    hasDepartedOmiyaOnUpTrack(train) &&
+    !train.earlyAdmissionTriggeredByOmiyaDeparture &&
+    (train.omiyaDepartureSeconds ?? 0) >= EARLY_ADMISSION_AFTER_OMIYA_DEPARTURE_SECONDS
+      ? { ...train, earlyAdmissionTriggeredByOmiyaDeparture: true }
+      : train,
+  )
+}
+
 function canEarlyAdmitWaitingTrain(waitingTrain, activeTrains) {
   if (!waitingTrain) return false
   return Boolean(availableUpAdmissionTrackShortName(activeTrains))
@@ -531,17 +583,11 @@ function activeTrainFromWaitingTrain(waitingTrain) {
     colorClass: colorClassForTrainType(parsed.type),
     plan: createTrainPlan('up', assignedPlatform),
     stoppedStations: [],
+    omiyaDepartureSeconds: null,
+    earlyAdmissionTriggeredByOmiyaDeparture: false,
   }
 }
 
-function isUpRouteOpenBetweenOmiyaAndUeno(activeTrains) {
-  const upTrackIds = new Set(['up-main', 'up-sub'])
-
-  return !activeTrains.some((train) => {
-    if (!upTrackIds.has(train.track)) return false
-    return train.x >= 38 && train.x <= 82
-  })
-}
 
 function reduceDelayForEarlyAdmission(train) {
   return {
@@ -673,12 +719,6 @@ function canUseTrack(train, targetTrack) {
   )
 }
 
-function needsTokyoTerminalTransfer(train, currentStation, currentTrack) {
-  // 上り列車は東京駅の上り本線へ例外的に到着できる。
-  // 到着後はその線内で折返し準備を行い、折返し下り列車として分岐器まで進んでから抑止する。
-  // そのため、上り列車そのものは東京駅構内で自動抑止しない。
-  return false
-}
 
 function firstOddNumber(number) {
   return number % 2 === 1 ? number : number + 1
@@ -745,6 +785,8 @@ function turnbackAtTokyo(train, currentTrack) {
     awaitingTokyoDownTransfer: needsDownTransfer,
     originalUpTrainId: train.id,
     originalArrivalTrack: train.arrivalTrack ?? train.track,
+    omiyaDepartureSeconds: null,
+    earlyAdmissionTriggeredByOmiyaDeparture: false,
   }
 }
 
@@ -813,15 +855,6 @@ function mainTracksForExtraTrack(track) {
   return []
 }
 
-function platformLabel(platformId) {
-  for (const station of STATIONS) {
-    const platform = station.tracks.find((track) => track.id === platformId)
-    if (platform) {
-      return `${station.name}${platform.number}番線（${platform.role}）`
-    }
-  }
-  return '番線未設定'
-}
 
 
 function nextTrainState(train, allTrains) {
@@ -890,15 +923,6 @@ function nextTrainState(train, allTrains) {
     }
   }
 
-  // Insert Tokyo terminal transfer logic
-  if (needsTokyoTerminalTransfer(train, currentStation, currentTrack) && train.turnbackRemaining == null) {
-    return {
-      ...train,
-      autoHeld: true,
-      holdSeconds: nextHoldSeconds,
-      delay: Number((ndelay + 0.02).toFixed(1)),
-    }
-  }
 
 
   if (train.held) {
@@ -1014,7 +1038,6 @@ export default function App() {
   const [trains, setTrains] = useState(() => generateInitialTrains())
   const [waitingTrains, setWaitingTrains] = useState(() => generateWaitingTrains())
   const [selectedTrainGroup, setSelectedTrainGroup] = useState(null)
-  // const [selectedWaitingTrain, setSelectedWaitingTrain] = useState(null)
   const [waitingListOpen, setWaitingListOpen] = useState(false)
   const [upRouteOpenSeconds, setUpRouteOpenSeconds] = useState(0)
   const [running, setRunning] = useState(false)
@@ -1032,8 +1055,7 @@ export default function App() {
   const [tutorialStep, setTutorialStep] = useState(0)
   const [operationWarnings, setOperationWarnings] = useState({})
   const [score, setScore] = useState(1000)
-  const [events, setEvents] = useState([
-  ])
+  const [events, setEvents] = useState([])
 
   const totalDelay = useMemo(
     () => trains.reduce((sum, t) => sum + t.delay, 0),
@@ -1069,11 +1091,6 @@ export default function App() {
       setOperationWarnings({})
     }
   }, [selectedTrainGroup, trains])
-  // const selectedWaitingTrainDetails = useMemo(() => {
-  //   if (!selectedWaitingTrain) return null
-  //
-  //   return waitingTrains.find((train) => train.id === selectedWaitingTrain.id) ?? selectedWaitingTrain
-  // }, [selectedWaitingTrain, waitingTrains])
 
   const currentTutorialStep = TUTORIAL_STEPS[tutorialStep] ?? TUTORIAL_STEPS[0]
   const isLastTutorialStep = tutorialStep === TUTORIAL_STEPS.length - 1
@@ -1111,12 +1128,11 @@ export default function App() {
         let next = prev
           .map((train) => nextTrainState(train, prev))
           .filter(Boolean)
+          .map((train) => updateOmiyaDepartureTimer(train))
 
-        const routeOpen = isUpRouteOpenBetweenOmiyaAndUeno(next)
-        const nextUpRouteOpenSeconds = routeOpen ? upRouteOpenSeconds + 1 : 0
-        const earlyAdmissionTriggered = nextUpRouteOpenSeconds >= EARLY_ADMISSION_OPEN_SECONDS
-       
-        setUpRouteOpenSeconds(earlyAdmissionTriggered ? 0 : nextUpRouteOpenSeconds)
+        const earlyAdmissionTriggered = hasOmiyaDepartureEarlyAdmissionTrigger(next)
+
+        setUpRouteOpenSeconds(0)
 
         setWaitingTrains((waitingPrev) => {
           const updatedWaitingTrains = waitingPrev.map((waitingTrain) => {
@@ -1153,14 +1169,15 @@ export default function App() {
               eta: '入線可能',
             }
             const admittedTrain = activeTrainFromWaitingTrain(admittedWaitingTrain)
-            setTrains((currentTrains) => {
-              const alreadyAdmitted = currentTrains.some((train) => train.id === admittedTrain.id)
-              const adjustedTrains = earlyAdmissionTriggered
-                ? currentTrains.map((train) => reduceDelayForEarlyAdmission(train))
-                : currentTrains
+            next = markOmiyaDepartureEarlyAdmissionUsed(next)
+            next = earlyAdmissionTriggered
+              ? next.map((train) => reduceDelayForEarlyAdmission(train))
+              : next
 
-              return alreadyAdmitted ? adjustedTrains : [...adjustedTrains, admittedTrain]
-            })
+            const alreadyAdmitted = next.some((train) => train.id === admittedTrain.id)
+            if (!alreadyAdmitted) {
+              next = [...next, admittedTrain]
+            }
             addEvent(
               earlyAdmissionTriggered
                 ? `${formattedTime} ${admittedWaitingTrain.name}: 上り進路開通により先行入線`
@@ -1387,7 +1404,6 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     setWaitingTrains(generateWaitingTrains())
     tokyoTurnbacksSinceLastDeadhead = 0
     setSelectedTrainGroup(null)
-    // setSelectedWaitingTrain(null)
     setWaitingListOpen(false)
     setUpRouteOpenSeconds(0)
     setRunning(false)
@@ -1584,9 +1600,12 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
               </div>
 
               {TRACKS.map((track) => (
-                <div className="track-row" style={{ top: track.y }} key={track.id}>
+                <div
+                  className="track-row"
+                  style={{ top: track.y }}
+                  key={track.id}
+                >
                   <div className="track-line" />
-                  <span>{track.name}</span>
                 </div>
               ))}
 
@@ -1602,8 +1621,20 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
                   title={track.name}
                 >
                   <div className="track-line" />
-                  <span>{track.name}</span>
                 </div>
+              ))}
+
+              {[...TRACKS, ...OMIYA_EXTRA_TRACKS].map((track) => (
+                <span
+                  className={`track-name-label track-label-${track.labelPosition}`}
+                  key={`${track.id}-label`}
+                  style={{
+                    top: track.labelY,
+                    left: `${track.labelX}%`,
+                  }}
+                >
+                  {track.name}
+                </span>
               ))}
 
               <div className="direction-boundary" />
@@ -1625,7 +1656,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
               ))}
 
               {trains.map((train) => {
-  const stationName = stationAt(train.x)
+  // const stationName = stationAt(train.x)
   const trackY = routeTrackById(train.track)?.y ?? 0
   const popupHorizontalClass = train.x > 72 ? 'popup-left' : train.x < 24 ? 'popup-right' : 'popup-center'
   const popupVerticalClass = trackY > 230 ? 'popup-above' : 'popup-below'
@@ -1663,7 +1694,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
         </ol>
       </div>
 
-      {stationName && <p className="near-station">{stationName}付近</p>}
+      {/* {stationName && <p className="near-station">{stationName}付近</p>} */}
     </button>
   )
 })}
@@ -1718,10 +1749,10 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
       </section>
 
       <p className="help">
-        遊び方: 全列車は東京・上野・大宮で30秒停車します。停車時間をうまく計算しながら列車に指示を出しましょう。
-        停車後、前方が詰まっていなければ自動で発車し、前方が詰まっている場合は自動で抑止されます。
-        上り本線が大宮〜上野間で2秒以上開通していると後続列車が先行入線します。抑止中の列車が増えたり、1分以上抑止される列車が出たりすると安全リスクが上がります。評価は、遅延回復までの速さ・安全リスクの低さ・優先使用の少なさによって変動します。適切な進路を構成しながら遅延回復を目指してください。
-      </p>
+  遊び方: 全列車は東京・上野・大宮で30秒停車します。停車時間をうまく計算しながら列車に指示を出しましょう。
+  停車後、前方が詰まっていなければ自動で発車し、前方が詰まっている場合は自動で抑止されます。
+  大宮駅の上り本線1・上り本線2・大宮上り副本線にいた列車が大宮駅を発車して35秒経過すると、後続列車が上り本線1または上り本線2へ先行入線します。抑止中の列車が増えたり、1分以上抑止される列車が出たりすると安全リスクが上がります。評価は、遅延回復までの速さ・安全リスクの低さ・優先使用の少なさによって変動します。適切な進路を構成しながら遅延回復を目指してください。
+</p>
 
       {waitingListOpen && (
         <div className="waiting-train-modal" role="dialog" aria-label="後続列車一覧">
