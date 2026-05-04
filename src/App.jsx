@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
-const UPPER_STATION_AREA_SWITCH_MARKERS = [26.5, 46, 62.5, 81]
-const LOWER_STATION_AREA_SWITCH_MARKERS = [28.1, 48.8, 66, 85.7]
+const UPPER_STATION_AREA_SWITCH_MARKERS = [27.5, 48.8, 66, 86.3]
+const LOWER_STATION_AREA_SWITCH_MARKERS = [27.5, 48.8, 66, 86.3]
 const STATION_LABEL_POSITIONS = {
   ueno: (UPPER_STATION_AREA_SWITCH_MARKERS[0] + UPPER_STATION_AREA_SWITCH_MARKERS[1]) / 2,
   omiya: (UPPER_STATION_AREA_SWITCH_MARKERS[2] + UPPER_STATION_AREA_SWITCH_MARKERS[3]) / 2,
@@ -1248,11 +1248,11 @@ export default function App() {
 
     if (willHold) {
       setMessage(
-        `${id}を抑止しました。後続・対向列車の進路を確保できますが、待たせすぎると遅延が増えます。`,
+        `${id}を抑止しました。`,
       )
       addEvent(`${formattedTime} ${id}: 抑止`)
     } else {
-      setMessage(`${id}の抑止を解除しました。列車が再出発します。`)
+      setMessage(`${id}の抑止を解除しました。列車が出発します。`)
       addEvent(`${formattedTime} ${id}: 抑止解除`)
     }
   }

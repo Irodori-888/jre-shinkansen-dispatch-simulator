@@ -463,11 +463,6 @@ button {
   font-weight: 800;
 }
 
-.waiting-panel-head span {
-  color: #71717a;
-  font-size: 12px;
-  white-space: nowrap;
-}
 
 .waiting-trains {
   display: grid;
@@ -558,9 +553,6 @@ button {
     flex-direction: column;
   }
 
-  .waiting-panel-head span {
-    white-space: normal;
-  }
 }
 
 @media (max-width: 560px) {
@@ -1508,11 +1500,6 @@ button {
   font-weight: 900;
 }
 
-.pc-track-buttons {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
 
 .pc-track-buttons button {
   min-height: 40px;
@@ -2973,11 +2960,6 @@ body {
   gap: 8px;
 }
 
-.mobile-track-buttons {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
-}
 
 .operation-track-column {
   display: grid;
@@ -2988,9 +2970,42 @@ body {
   width: 100%;
 }
 
+
+/* Mobile operation route buttons: subtle up/down divider */
 @media (max-width: 720px) {
-  .pc-track-buttons,
   .mobile-track-buttons {
-    grid-template-columns: 1fr;
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 14px;
   }
+
+  .mobile-track-buttons::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    left: 50%;
+    width: 1px;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: rgba(24, 24, 27, 0.22);
+    pointer-events: none;
+  }
+
+  .mobile-track-buttons .operation-track-column {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+/* Operation panel hold-time badge centering */
+.pc-operation-train-head .hold-time-info,
+.mobile-operation-train-head .hold-time-info {
+  align-self: center;
+  justify-self: center;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
 }
