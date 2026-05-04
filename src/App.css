@@ -2551,11 +2551,6 @@ body {
   background: rgba(255, 255, 255, 0.96);
 }
 
-.waiting-scroll-hint {
-  margin-top: 0;
-  border-radius: 0 0 28px 28px;
-  background: #f8fafc;
-}
 
 .waiting-scroll {
   margin-top: 14px;
@@ -2582,10 +2577,6 @@ body {
   .message {
     padding: 18px 16px;
     line-height: 1.65;
-  }
-
-  .waiting-scroll-hint {
-    border-radius: 0 0 22px 22px;
   }
 
   .waiting-scroll {
@@ -2618,14 +2609,6 @@ body {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
 }
 
-.waiting-board .waiting-scroll-hint {
-  margin-top: 0;
-  border: 0;
-  border-bottom: 1px solid #e4e4e7;
-  border-radius: 0;
-  background: #f8fafc;
-}
-
 .waiting-board .waiting-scroll {
   margin-top: 0;
 }
@@ -2644,10 +2627,6 @@ body {
   .rail-panel .message {
     padding: 18px 16px;
     line-height: 1.65;
-  }
-
-  .waiting-board .waiting-scroll-hint {
-    border-radius: 0;
   }
 
   .waiting-board .waiting-panel {
@@ -2691,9 +2670,6 @@ body {
   z-index: 0;
 }
 
-.station {
-  z-index: 1;
-}
 
 @media (max-width: 720px) {
   .station-switch-marker {
@@ -2757,5 +2733,25 @@ body {
   .lower-station-switch-marker {
     width: 1.5px;
     background: rgba(24, 24, 27, 0.62);
+  }
+}
+
+/* Mobile waiting train modal heading alignment */
+@media (max-width: 720px) {
+  .waiting-train-modal-head {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .waiting-train-modal-head > div {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .waiting-train-modal-head strong,
+  .waiting-train-modal-head span {
+    display: block;
+    width: 100%;
+    text-align: left;
   }
 }

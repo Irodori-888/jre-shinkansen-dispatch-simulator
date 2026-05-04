@@ -1569,7 +1569,6 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
         </div>
 
         <div className="waiting-board">
-          <p className="scroll-hint waiting-scroll-hint">後続列車案内は横にスクロールできます</p>
           <div className="waiting-scroll">
             <div className="waiting-panel">
               <div className="waiting-panel-head">
