@@ -71,7 +71,14 @@ const OMIYA_EXTRA_TRACKS = [
   { id: 'omiya-down-extra', name: '大宮下り副本線', shortName: '大宮下り副本線', direction: 'down', y: 292, startX: 63.7, endX: 85.2 },
 ]
 
+
 const ROUTE_TRACKS = [...TRACKS, ...OMIYA_EXTRA_TRACKS]
+
+const OPERATION_TRACK_GROUPS = [
+  ['up-main', 'up-sub'],
+  ['down-main', 'down-sub'],
+  ['omiya-up-extra', 'omiya-down-extra'],
+]
 
 const SWITCH_POINTS = [
   { id: 'tokyo-terminal-crossover', label: '東京駅構内 本線間渡り', direction: 'terminal', x: 28, top: 72, height: 180 },
@@ -91,7 +98,11 @@ const TOKYO_TERMINAL_DOWN_LIMIT_X = 24
 
 const INITIAL_TRAIN_COUNT = 11
 const WAITING_TRAIN_COUNT = 9
+const EARLY_ADMISSION_OPEN_SECONDS = 2
+const HOLD_RISK_TRAIN_COUNT = 2
+const LONG_HOLD_RISK_SECONDS = 60
 let tokyoTurnbacksSinceLastDeadhead = 0
+
 const TUTORIAL_STEPS = [
   {
     title: 'このゲームの目的',
@@ -119,7 +130,11 @@ const TUTORIAL_STEPS = [
   },
   {
     title: '安全リスク',
-    body: '列車同士が近づきすぎると安全リスクが上がります。安全リスクが13に達するとゲームオーバーです。',
+    body: '列車同士が近づきすぎると安全リスクが上がります。また、抑止中の列車が増えたり、ゲーム内時間で1分以上抑止される列車が出たりした場合も、安全リスクが上がります。安全リスクが13に達するとゲームオーバーです。',
+  },
+  {
+    title: '評価のしくみ',
+    body: '評価は、遅延回復までの速さ、安全リスクの低さ、優先使用の少なさによって変動します。安全を守りながら、できるだけ早く総遅延を減らすことが高評価につながります。',
   },
   {
     title: '始業前点呼',
@@ -424,6 +439,18 @@ function trainStatusLabel(train) {
   return '走行中'
 }
 
+function holdTimeLabel(train) {
+  const seconds = Math.floor(train.holdSeconds ?? 0)
+  if (seconds <= 0) return '0秒'
+
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+
+  if (minutes <= 0) return `${remainingSeconds}秒`
+  if (remainingSeconds === 0) return `${minutes}分`
+  return `${minutes}分${String(remainingSeconds).padStart(2, '0')}秒`
+}
+
 function trainDisplayDetails(train) {
   return `${displayTrainName(train)} / ${trainDirectionLabel(train)} / ${trackLabel(train.track)} / +${train.delay.toFixed(1)}分 / ${trainStatusLabel(train)}`
 }
@@ -493,6 +520,7 @@ function activeTrainFromWaitingTrain(waitingTrain) {
     held: false,
     priority: false,
     autoHeld: false,
+    holdSeconds: 0,
     dwellRemaining: null,
     turnbackRemaining: null,
     colorClass: colorClassForTrainType(parsed.type),
@@ -536,6 +564,15 @@ function riskLevel(trains) {
       if (gap < 8) risk += 3
       else if (gap < 14) risk += 1
     }
+  }
+
+  const heldTrains = trains.filter((train) => train.held || train.autoHeld)
+  const hasLongHeldTrain = heldTrains.some(
+    (train) => (train.holdSeconds ?? 0) >= LONG_HOLD_RISK_SECONDS,
+  )
+
+  if (heldTrains.length >= HOLD_RISK_TRAIN_COUNT || hasLongHeldTrain) {
+    risk += 1
   }
 
   return Math.min(risk, 13)
@@ -697,6 +734,7 @@ function turnbackAtTokyo(train, currentTrack) {
     dwellRemaining: 30,
     autoHeld: false,
     held: false,
+    holdSeconds: 0,
     priority: false,
     turnbackRemaining: null,
     awaitingTokyoDownTransfer: needsDownTransfer,
@@ -787,6 +825,7 @@ function nextTrainState(train, allTrains) {
   const stoppedStations = train.stoppedStations ?? []
   const currentStation = stationObjectAt(train.x)
   const currentTrack = routeTrackById(train.track)
+  const nextHoldSeconds = (train.held || train.autoHeld) ? (train.holdSeconds ?? 0) + 1 : 0
 
   // --- Tokyo up-arrival turnback logic ---
   if (train.direction === 'up' && currentStation?.id === 'tokyo') {
@@ -803,6 +842,7 @@ function nextTrainState(train, allTrains) {
         dwellRemaining: null,
         autoHeld: false,
         held: false,
+        holdSeconds: 0,
       }
     }
 
@@ -821,6 +861,7 @@ function nextTrainState(train, allTrains) {
         x: tokyoStopX,
         dwellRemaining: remaining - 1,
         autoHeld: false,
+        holdSeconds: 0,
       }
     }
 
@@ -829,6 +870,7 @@ function nextTrainState(train, allTrains) {
         ...train,
         awaitingTokyoDownTransfer: false,
         autoHeld: false,
+        holdSeconds: 0,
       }
     }
 
@@ -836,8 +878,8 @@ function nextTrainState(train, allTrains) {
     if (train.x >= tokyoSwitchX - 1) {
       return {
         ...train,
-        x: tokyoSwitchX,
         autoHeld: true,
+        holdSeconds: nextHoldSeconds,
         delay: Number((ndelay + 0.02).toFixed(1)),
       }
     }
@@ -848,6 +890,7 @@ function nextTrainState(train, allTrains) {
     return {
       ...train,
       autoHeld: true,
+      holdSeconds: nextHoldSeconds,
       delay: Number((ndelay + 0.02).toFixed(1)),
     }
   }
@@ -858,6 +901,7 @@ function nextTrainState(train, allTrains) {
       ...train,
       delay: Number((ndelay + 0.02).toFixed(1)),
       autoHeld: false,
+      holdSeconds: nextHoldSeconds,
     }
   }
 
@@ -869,6 +913,7 @@ function nextTrainState(train, allTrains) {
         x: clampToTrackRange(train.x, currentTrack),
         track: mainTrack.id,
         autoHeld: false,
+        holdSeconds: 0,
       }))
       .find((candidate) => !isFrontBlocked(candidate, allTrains))
 
@@ -878,8 +923,8 @@ function nextTrainState(train, allTrains) {
 
     return {
       ...train,
-      x: clampToTrackRange(train.x, currentTrack),
       autoHeld: true,
+      holdSeconds: nextHoldSeconds,
       delay: Number((ndelay + 0.02).toFixed(1)),
     }
   }
@@ -894,14 +939,15 @@ function nextTrainState(train, allTrains) {
         x: stopX,
         dwellRemaining: remaining - 1,
         autoHeld: false,
+        holdSeconds: 0,
       }
     }
 
     if (isFrontBlocked(train, allTrains)) {
       return {
         ...train,
-        x: stopX,
         autoHeld: true,
+        holdSeconds: nextHoldSeconds,
         delay: Number((ndelay + 0.02).toFixed(1)),
       }
     }
@@ -911,6 +957,7 @@ function nextTrainState(train, allTrains) {
       x: stopX,
       dwellRemaining: null,
       autoHeld: false,
+      holdSeconds: 0,
       stoppedStations: [...stoppedStations, currentStation.id],
     }
   }
@@ -919,6 +966,7 @@ function nextTrainState(train, allTrains) {
     return {
       ...train,
       autoHeld: true,
+      holdSeconds: nextHoldSeconds,
       delay: Number((ndelay + 0.02).toFixed(1)),
     }
   }
@@ -936,8 +984,8 @@ function nextTrainState(train, allTrains) {
 
     return {
       ...train,
-      x: STATIONS.find((station) => station.id === 'tokyo')?.stopX ?? 0,
       autoHeld: true,
+      holdSeconds: nextHoldSeconds,
       delay: Number((ndelay + 0.02).toFixed(1)),
     }
   }
@@ -953,6 +1001,7 @@ function nextTrainState(train, allTrains) {
     x: clampToTrackRange(nx, currentTrack),
     delay: Number(ndelay.toFixed(1)),
     autoHeld: false,
+    holdSeconds: 0,
   }
 }
 
@@ -965,6 +1014,7 @@ export default function App() {
   const [upRouteOpenSeconds, setUpRouteOpenSeconds] = useState(0)
   const [running, setRunning] = useState(false)
   const [gameOver, setGameOver] = useState(false)
+  const [gameClear, setGameClear] = useState(false)
   const [time, setTime] = useState(15 * 3600 + 23 * 60)
   const [pointsLocked, setPointsLocked] = useState(false)
   const [message, setMessage] = useState(
@@ -1047,7 +1097,7 @@ export default function App() {
   )}:${String(Math.floor((time % 3600) / 60)).padStart(2, '0')}:${String(time % 60).padStart(2, '0')}`
 
   useEffect(() => {
-    if (!running || gameOver) return undefined
+    if (!running || gameOver || gameClear) return undefined
 
     const intervalId = window.setInterval(() => {
       setTime((v) => v + 1)
@@ -1059,8 +1109,8 @@ export default function App() {
 
         const routeOpen = isUpRouteOpenBetweenOmiyaAndUeno(next)
         const nextUpRouteOpenSeconds = routeOpen ? upRouteOpenSeconds + 1 : 0
-        const earlyAdmissionTriggered = nextUpRouteOpenSeconds >= 5
-
+        const earlyAdmissionTriggered = nextUpRouteOpenSeconds >= EARLY_ADMISSION_OPEN_SECONDS
+       
         setUpRouteOpenSeconds(earlyAdmissionTriggered ? 0 : nextUpRouteOpenSeconds)
 
         setWaitingTrains((waitingPrev) => {
@@ -1123,6 +1173,11 @@ export default function App() {
 
         const nextRisk = riskLevel(next)
         const nextTotalDelay = next.reduce((sum, t) => sum + t.delay, 0)
+        const heldTrains = next.filter((train) => train.held || train.autoHeld)
+        const hasLongHeldTrain = heldTrains.some(
+          (train) => (train.holdSeconds ?? 0) >= LONG_HOLD_RISK_SECONDS,
+        )
+        const hasManyHeldTrains = heldTrains.length >= HOLD_RISK_TRAIN_COUNT
 
         if (nextRisk >= 13) {
           setRunning(false)
@@ -1132,18 +1187,31 @@ export default function App() {
             '列車事故発生。防護無線発報中。全列車の運転を停止します。',
           )
           addEvent(`${formattedTime} 列車事故発生: 安全リスク13到達`)
+        } else if (nextTotalDelay <= 0) {
+          setRunning(false)
+          setGameClear(true)
+          setMessage('表示中の全列車の遅延が回復しました。運転整理完了です。お疲れ様でした。')
+          addEvent(`${formattedTime} 運転整理完了: 表示中の全列車の遅延が回復`)
         } else if (nextRisk >= 10) {
-          setScore((s) => Math.max(0, s - 40))
+          setScore((s) => Math.max(0, s - 18))
           setMessage(
-            '危険警告。安全リスクが10以上です。閉塞間隔が非常に詰まっています。直ちに抑止または転線を行ってください。',
+            hasLongHeldTrain
+              ? '危険警告。1分以上抑止されている列車があります。運転再開または進路整理を検討してください。'
+              : hasManyHeldTrains
+                ? '危険警告。抑止中の列車が増えています。運転再開または進路整理を検討してください。'
+                : '危険警告。安全リスクが10以上です。閉塞間隔が非常に詰まっています。直ちに抑止または転線を行ってください。',
           )
         } else if (nextRisk >= 3) {
-          setScore((s) => Math.max(0, s - 25))
+          setScore((s) => Math.max(0, s - 8))
           setMessage(
-            '接近警報。閉塞間隔が詰まっています。抑止か待避線への転線を検討してください。',
+            hasLongHeldTrain
+              ? '注意。1分以上抑止されている列車があります。抑止解除や進路変更を検討してください。'
+              : hasManyHeldTrains
+                ? '注意。抑止中の列車が増えています。列車を待たせすぎないよう進路を整理してください。'
+                : '接近警報。閉塞間隔が詰まっています。抑止か待避線への転線を検討してください。',
           )
         } else {
-          setScore((s) => Math.max(0, s - Math.ceil(nextTotalDelay / 8)))
+          setScore((s) => Math.max(0, s - Math.ceil(nextTotalDelay / 20)))
         }
 
         return next
@@ -1151,7 +1219,7 @@ export default function App() {
     }, 1000)
 
     return () => window.clearInterval(intervalId)
-  }, [running, gameOver, formattedTime, upRouteOpenSeconds])
+  }, [running, gameOver, gameClear, formattedTime, upRouteOpenSeconds])
 
 
   const addEvent = (text) => {
@@ -1294,7 +1362,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     )
 
     if (willPrioritize) {
-      setScore((s) => Math.max(0, s - 30))
+      setScore((s) => Math.max(0, s - 15))
       setMessage(
         `${id}に優先通過を設定しました。`,
       )
@@ -1315,6 +1383,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     setUpRouteOpenSeconds(0)
     setRunning(false)
     setGameOver(false)
+    setGameClear(false)
     setTime(15 * 3600 + 23 * 60)
     setPointsLocked(false)
     setScore(1000)
@@ -1327,13 +1396,13 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
   }
 
   const grade =
-    score > 850 && totalDelay < 5
+    score > 760 && totalDelay < 5
       ? 'S'
-      : score > 700
+      : score > 620
         ? 'A'
-        : score > 520
+        : score > 420
           ? 'B'
-          : score > 300
+          : score > 220
             ? 'C'
             : 'D'
 
@@ -1401,9 +1470,40 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
         </div>
       </div>
     )}
+    {gameClear && (
+      <div className="game-over-overlay game-clear-overlay" role="alert">
+        <div className="game-over-card game-clear-card">
+          <h2>運転整理完了</h2>
+          <p>
+            表示中の全列車の遅延が回復しました。東京〜大宮間の運行は平常状態へ戻りました。
+          </p>
+          <div className="clear-summary">
+            <div className="clear-result">
+              <span>最終評価</span>
+              <strong>{grade}</strong>
+            </div>
+            <div className="clear-result clear-result-small">
+              <span>整理完了時刻</span>
+              <strong>{formattedTime}</strong>
+            </div>
+            <div className="clear-result clear-result-small">
+              <span>最終スコア</span>
+              <strong>{score}</strong>
+            </div>
+            <div className="clear-result clear-result-small">
+              <span>安全リスク</span>
+              <strong>{risk}/13</strong>
+            </div>
+          </div>
+          <button className="secondary-button" onClick={resetGame}>
+            ↻ もう一度プレイ
+          </button>
+        </div>
+      </div>
+    )}
       <header className="game-header">
         <div>
-          <p className="version">JRE Shinkansen Dispatch Simulator v2.1.1</p>
+          <p className="version">JRE Shinkansen Dispatch Simulator v2.1.2</p>
           <h1>
   <span className="title-main">JR東日本 新幹線</span>
   <span className="title-sub">遅延回復シミュレーター</span>
@@ -1437,8 +1537,8 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
           <strong>{grade}</strong>
         </div>
         <div className="stats-actions">
-  <button className="primary-button" onClick={() => !gameOver && setRunning((v) => !v)} disabled={gameOver}>
-  {gameOver ? '運転停止中' : running ? '⏸ 一時停止' : '▶ 運転開始'}
+  <button className="primary-button" onClick={() => !gameOver && !gameClear && setRunning((v) => !v)} disabled={gameOver || gameClear}>
+  {gameOver ? '運転停止中' : gameClear ? '整理完了' : running ? '⏸ 一時停止' : '▶ 運転開始'}
 </button>
   <button className="secondary-button" onClick={resetGame}>
     ↻ リセット
@@ -1611,7 +1711,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
       <p className="help">
         遊び方: 全列車は東京・上野・大宮で30秒停車します。停車時間をうまく計算しながら列車に指示を出しましょう。
         停車後、前方が詰まっていなければ自動で発車し、前方が詰まっている場合は自動で抑止されます。
-        上り本線が大宮〜上野間で5秒以上開通していると後続列車が先行入線します。適切な進路を構成しながら遅延回復を目指してください。
+        上り本線が大宮〜上野間で2秒以上開通していると後続列車が先行入線します。抑止中の列車が増えたり、1分以上抑止される列車が出たりすると安全リスクが上がります。評価は、遅延回復までの速さ・安全リスクの低さ・優先使用の少なさによって変動します。適切な進路を構成しながら遅延回復を目指してください。
       </p>
 
       {waitingListOpen && (
@@ -1670,6 +1770,9 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
                     <strong>{coloredTrainName(train)}</strong>
                     {(train.held || train.autoHeld) && <b className="control-hold-mark">× 抑止</b>}
                     <span>{trainDirectionLabel(train)} / +{train.delay.toFixed(1)}分 / {trainStatusLabel(train)}</span>
+                    {(train.held || train.autoHeld) && (
+                      <p className="compact-info hold-time-info">抑止時間: {holdTimeLabel(train)}</p>
+                    )}
                     <p className="compact-info">現在進路: {trackLabel(train.track)}</p>
                     {operationWarnings[train.id] && (
                       <p className="operation-warning">⚠ {operationWarnings[train.id]}</p>
@@ -1679,15 +1782,24 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
                   <div className="pc-operation-section">
                     <strong>進路を構成</strong>
                     <div className="pc-track-buttons">
-                      {ROUTE_TRACKS.map((track) => (
-                        <button
-                          type="button"
-                          key={track.id}
-                          className={train.track === track.id ? 'selected' : ''}
-                          onClick={() => changeTrack(train.id, track.id)}
-                        >
-                          {track.shortName}
-                        </button>
+                      {OPERATION_TRACK_GROUPS.map((group, groupIndex) => (
+                        <div className="operation-track-column" key={`pc-track-group-${groupIndex}`}>
+                          {group.map((trackId) => {
+                            const track = routeTrackById(trackId)
+                            if (!track) return null
+
+                            return (
+                              <button
+                                type="button"
+                                key={track.id}
+                                className={train.track === track.id ? 'selected' : ''}
+                                onClick={() => changeTrack(train.id, track.id)}
+                              >
+                                {track.shortName}
+                              </button>
+                            )
+                          })}
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -1736,7 +1848,10 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
             <div className="mobile-operation-train-head">
               <strong>{coloredTrainName(train)}</strong>
               <span>{trainDirectionLabel(train)} / +{train.delay.toFixed(1)}分 / {trainStatusLabel(train)}</span>
-              <span>現在進路: {trackLabel(train.track)}</span>
+              {(train.held || train.autoHeld) && (
+                <p className="compact-info hold-time-info">抑止時間: {holdTimeLabel(train)}</p>
+              )}
+              <p className="compact-info">現在進路: {trackLabel(train.track)}</p>
               {operationWarnings[train.id] && (
                 <span className="mobile-operation-warning">⚠ {operationWarnings[train.id]}</span>
               )}
@@ -1745,15 +1860,24 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
             <div className="mobile-operation-section">
               <strong>進路を構成</strong>
               <div className="mobile-track-buttons">
-                {ROUTE_TRACKS.map((track) => (
-                  <button
-                    type="button"
-                    key={track.id}
-                    className={train.track === track.id ? 'selected' : ''}
-                    onClick={() => changeTrack(train.id, track.id)}
-                  >
-                    {track.shortName}
-                  </button>
+                {OPERATION_TRACK_GROUPS.map((group, groupIndex) => (
+                  <div className="operation-track-column" key={`mobile-track-group-${groupIndex}`}>
+                    {group.map((trackId) => {
+                      const track = routeTrackById(trackId)
+                      if (!track) return null
+
+                      return (
+                        <button
+                          type="button"
+                          key={track.id}
+                          className={train.track === track.id ? 'selected' : ''}
+                          onClick={() => changeTrack(train.id, track.id)}
+                        >
+                          {track.shortName}
+                        </button>
+                      )
+                    })}
+                  </div>
                 ))}
               </div>
             </div>
