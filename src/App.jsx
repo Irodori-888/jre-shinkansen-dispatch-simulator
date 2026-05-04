@@ -75,9 +75,14 @@ const OMIYA_EXTRA_TRACKS = [
 const ROUTE_TRACKS = [...TRACKS, ...OMIYA_EXTRA_TRACKS]
 
 const OPERATION_TRACK_GROUPS = [
-  ['up-main', 'up-sub'],
-  ['down-main', 'down-sub'],
+  ['up-main', 'down-main'],
+  ['up-sub', 'down-sub'],
   ['omiya-up-extra', 'omiya-down-extra'],
+]
+
+const MOBILE_OPERATION_TRACK_GROUPS = [
+  ['up-main', 'up-sub', 'omiya-up-extra'],
+  ['down-main', 'down-sub', 'omiya-down-extra'],
 ]
 
 const SWITCH_POINTS = [
@@ -1860,7 +1865,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
             <div className="mobile-operation-section">
               <strong>進路を構成</strong>
               <div className="mobile-track-buttons">
-                {OPERATION_TRACK_GROUPS.map((group, groupIndex) => (
+                {MOBILE_OPERATION_TRACK_GROUPS.map((group, groupIndex) => (
                   <div className="operation-track-column" key={`mobile-track-group-${groupIndex}`}>
                     {group.map((trackId) => {
                       const track = routeTrackById(trackId)
