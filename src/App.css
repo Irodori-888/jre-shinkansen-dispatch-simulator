@@ -2755,3 +2755,108 @@ body {
     text-align: left;
   }
 }
+
+/* Mobile operation panel train name emphasis */
+@media (max-width: 720px) {
+  .mobile-operation-train-head > strong {
+    display: block;
+    width: 100%;
+    font-size: 21px;
+    line-height: 1.25;
+    letter-spacing: 0.01em;
+  }
+
+  .mobile-operation-train-head .colored-train-name,
+  .mobile-operation-train-head .colored-train-name-part {
+    display: inline-flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 420px) {
+  .mobile-operation-train-head > strong {
+    font-size: 20px;
+  }
+}
+
+/* Mobile operation panel typography balance */
+@media (max-width: 720px) {
+  .mobile-operation-train-head {
+    gap: 5px;
+  }
+
+  .mobile-operation-train-head > strong {
+    display: block;
+    width: 100%;
+    font-size: 24px;
+    line-height: 1.18;
+    letter-spacing: 0.01em;
+  }
+
+  .mobile-operation-train-head > span:not(.mobile-operation-warning) {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .mobile-operation-train-head .colored-train-name,
+  .mobile-operation-train-head .colored-train-name-part {
+    display: inline-flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 420px) {
+  .mobile-operation-train-head > strong {
+    font-size: 23px;
+  }
+
+  .mobile-operation-train-head > span:not(.mobile-operation-warning) {
+    font-size: 11.5px;
+    line-height: 1.4;
+  }
+}
+
+/* Ensure mobile operation train name stays larger than detail text */
+@media (max-width: 720px) {
+  .mobile-operation-train-head > strong,
+  .mobile-operation-train-head > strong .colored-train-name,
+  .mobile-operation-train-head > strong .colored-train-name-part,
+  .mobile-operation-train-head > strong .train-name-green,
+  .mobile-operation-train-head > strong .train-name-komachi,
+  .mobile-operation-train-head > strong .train-name-tsubasa,
+  .mobile-operation-train-head > strong .train-name-blue-purple,
+  .mobile-operation-train-head > strong .train-name-beige-pink,
+  .mobile-operation-train-head > strong .train-name-default,
+  .mobile-operation-train-head > strong .train-name-separator {
+    font-size: 25px !important;
+    line-height: 1.18;
+  }
+
+  .mobile-operation-train-head > span:not(.mobile-operation-warning),
+  .mobile-operation-train-head .compact-info {
+    font-size: 11.5px !important;
+    line-height: 1.42;
+  }
+}
+
+@media (max-width: 420px) {
+  .mobile-operation-train-head > strong,
+  .mobile-operation-train-head > strong .colored-train-name,
+  .mobile-operation-train-head > strong .colored-train-name-part,
+  .mobile-operation-train-head > strong .train-name-green,
+  .mobile-operation-train-head > strong .train-name-komachi,
+  .mobile-operation-train-head > strong .train-name-tsubasa,
+  .mobile-operation-train-head > strong .train-name-blue-purple,
+  .mobile-operation-train-head > strong .train-name-beige-pink,
+  .mobile-operation-train-head > strong .train-name-default,
+  .mobile-operation-train-head > strong .train-name-separator {
+    font-size: 24px !important;
+  }
+
+  .mobile-operation-train-head > span:not(.mobile-operation-warning),
+  .mobile-operation-train-head .compact-info {
+    font-size: 11px !important;
+  }
+}

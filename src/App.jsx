@@ -95,7 +95,7 @@ let tokyoTurnbacksSinceLastDeadhead = 0
 const TUTORIAL_STEPS = [
   {
     title: 'このゲームの目的',
-    body: '遅延を回復しながら、安全リスクを上げすぎないように列車を整理しましょう。',
+    body: '車両トラブルの影響で、新幹線の運行に遅れが広がっています。あなたは輸送指令として、東京〜大宮間の列車に進路や抑止を指示し、安全を守りながら遅延回復を目指します。',
   },
   {
     title: '運行表示板',
@@ -103,7 +103,11 @@ const TUTORIAL_STEPS = [
   },
   {
     title: '指令操作盤',
-    body: '進路を構成し、必要に応じて抑止や優先を使います。進路を変える場合は、分岐点付近で操作する必要があります。',
+    body: '列車を選ぶと、列車名・遅延時間・列車の状態・現在進路を確認できます。進路を変える場合は分岐点付近で操作します。必要に応じて抑止と優先を使い分けましょう。',
+  },
+  {
+    title: '抑止と優先',
+    body: '抑止は列車を一時的に止め、他の列車の進路を確保したいときに使います。優先は選んだ列車の遅延回復を早めますが、ほかの列車への影響に注意しましょう。',
   },
   {
     title: '後続列車',
@@ -1235,7 +1239,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
 
     setPointsLocked(true)
     setMessage(
-      `${id}の進路を${trackName}へ構成中。10秒ほどお待ちください。`,
+      `${id}の進路を${trackName}へ構成中。`,
     )
     setOperationWarning(id, `${trackName}へ進路を構成中です。`)
     addEvent(`${formattedTime} ${id}: ${trackName}へ進路構成`)
@@ -1273,9 +1277,6 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
           ? {
               ...t,
               priority: willPrioritize,
-              delay: willPrioritize
-                ? Math.max(0, Number((t.delay - 1.2).toFixed(1)))
-                : t.delay,
               speed: willPrioritize
                 ? Number(Math.min(t.speed + 0.03, 0.62).toFixed(2))
                 : Number(Math.max(t.speed - 0.03, 0.3).toFixed(2)),
@@ -1287,7 +1288,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     if (willPrioritize) {
       setScore((s) => Math.max(0, s - 30))
       setMessage(
-        `${id}に優先通過を設定しました。他列車へのしわ寄せに注意しましょう。`,
+        `${id}に優先通過を設定しました。`,
       )
       addEvent(`${formattedTime} ${id}: 優先通過設定`)
     } else {
@@ -1394,7 +1395,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     )}
       <header className="game-header">
         <div>
-          <p className="version">JRE Shinkansen Dispatch Simulator v2.1.0</p>
+          <p className="version">JRE Shinkansen Dispatch Simulator v2.1.1</p>
           <h1>
   <span className="title-main">JR東日本 新幹線</span>
   <span className="title-sub">遅延回復シミュレーター</span>
@@ -1722,14 +1723,14 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
                       className={train.held ? 'hold-button active' : 'hold-button'}
                       onClick={() => toggleHold(train.id)}
                     >
-                      {train.held ? '⏸ 解除' : '⏸ 抑止'}
+                      {train.held ? '抑止解除' : '抑止'}
                     </button>
                     <button
                       type="button"
                       className={train.priority ? 'priority-button active' : 'priority-button'}
                       onClick={() => priorityBoost(train.id)}
                     >
-                      {train.priority ? '⚡ 優先解除' : '⚡ 優先'}
+                      {train.priority ? '優先解除' : '優先'}
                     </button>
                   </div>
                 </section>
