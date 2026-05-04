@@ -2533,3 +2533,6 @@ body {
   }
 }
 
+.control-panel {
+  display: none !important;
+}

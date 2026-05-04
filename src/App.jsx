@@ -939,7 +939,6 @@ function nextTrainState(train, allTrains) {
 export default function App() {
   const [trains, setTrains] = useState(() => generateInitialTrains())
   const [waitingTrains, setWaitingTrains] = useState(() => generateWaitingTrains())
-  const [selectedTrainId, setSelectedTrainId] = useState(null)
   const [selectedTrainGroup, setSelectedTrainGroup] = useState(null)
   const [selectedWaitingTrain, setSelectedWaitingTrain] = useState(null)
   const [waitingListOpen, setWaitingListOpen] = useState(false)
@@ -1134,16 +1133,6 @@ export default function App() {
     return () => window.clearInterval(intervalId)
   }, [running, gameOver, formattedTime, upRouteOpenSeconds])
 
-  useEffect(() => {
-    if (trains.length === 0) {
-      setSelectedTrainId(null)
-      return
-    }
-
-    if (!selectedTrainId || !trains.some((train) => train.id === selectedTrainId)) {
-      setSelectedTrainId(trains[0].id)
-    }
-  }, [trains, selectedTrainId])
 
   const addEvent = (text) => {
     setEvents((prev) => [text, ...prev].slice(0, 6))
@@ -1303,7 +1292,6 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     setTrains(generateInitialTrains())
     setWaitingTrains(generateWaitingTrains())
     tokyoTurnbacksSinceLastDeadhead = 0
-    setSelectedTrainId(null)
     setSelectedTrainGroup(null)
     setSelectedWaitingTrain(null)
     setWaitingListOpen(false)
@@ -1573,61 +1561,6 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
             </div>
           </div>
         </div>
-        
-        <aside className="control-panel">
-          <h2>⇄ 指令操作盤</h2>
-
-
-          {pointsLocked && <p className="point-lock">ポイント転換中……</p>}
-
-          <div className="train-controls">
-            {trains.map((train) => (
-              <div
-  className={`train-control-card ${selectedTrainId === train.id ? 'mobile-selected' : ''}`}
-  key={train.id}
->
-                <div className="train-control-head">
-                  <div>
-                    <strong>{coloredTrainName(train)}</strong>
-                    {(train.held || train.autoHeld) && <b className="control-hold-mark">× 抑止</b>}
-                    <span>{train.direction === 'up' ? '上り' : '下り'} / +{train.delay.toFixed(1)}分 / {train.turnbackRemaining > 0 ? `折返し準備中 ${train.turnbackRemaining}s` : train.dwellRemaining > 0 ? `停車中 ${train.dwellRemaining}s` : train.autoHeld ? '進路待ち・自動抑止' : '走行可'}</span>
-                    <p className="compact-info">現在進路: {trackLabel(train.track)}</p>
-                    {operationWarnings[train.id] && (
-  <p className="operation-warning">⚠ {operationWarnings[train.id]}</p>
-)}
-                  </div>
-                </div>
-
-                <div className="track-buttons">
-                 {ROUTE_TRACKS.map((track) => (
-                    <button
-                      key={track.id}
-                      className={train.track === track.id ? 'selected' : ''}
-                      onClick={() => changeTrack(train.id, track.id)}
-                    >
-                      {track.shortName}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="action-buttons">
-  <button
-    className={train.held ? 'hold-button active' : 'hold-button'}
-    onClick={() => toggleHold(train.id)}
-  >
-    {train.held ? '⏸ 解除' : '⏸ 抑止'}
-  </button>
-  <button
-    className={train.priority ? 'priority-button active' : 'priority-button'}
-    onClick={() => priorityBoost(train.id)}
-  >
-    {train.priority ? '⚡ 優先解除' : '⚡ 優先'}
-  </button>
-</div>
-              </div>
-            ))}
-          </div>
-        </aside>
       </section>
 
       <section className="log-panel">
