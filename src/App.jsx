@@ -60,10 +60,10 @@ function stationLabelX(station) {
 }
 
 const TRACKS = [
-  { id: 'up-main', name: '上り本線1・東京方面', shortName: '上り本線1', direction: 'up', y: 72, labelPosition: 'outer-top', labelY: 48, labelX: 50 },
-  { id: 'up-sub', name: '上り本線2・東京方面', shortName: '上り本線2', direction: 'up', y: 112, labelPosition: 'outer-bottom', labelY: 132, labelX: 50 },
-  { id: 'down-main', name: '下り本線1・大宮方面', shortName: '下り本線1', direction: 'down', y: 204, labelPosition: 'outer-top', labelY: 180, labelX: 50 },
-  { id: 'down-sub', name: '下り本線2・大宮方面', shortName: '下り本線2', direction: 'down', y: 252, labelPosition: 'outer-bottom', labelY: 272, labelX: 50 },
+  { id: 'up-main', name: '上り本線1 東京方面', shortName: '上り本線1', direction: 'up', y: 72, labelPosition: 'outer-top', labelY: 48, labelX: 50 },
+  { id: 'up-sub', name: '上り本線2 東京方面', shortName: '上り本線2', direction: 'up', y: 112, labelPosition: 'outer-bottom', labelY: 132, labelX: 50 },
+  { id: 'down-main', name: '下り本線1 大宮・熊谷方面', shortName: '下り本線1', direction: 'down', y: 204, labelPosition: 'outer-top', labelY: 180, labelX: 50 },
+  { id: 'down-sub', name: '下り本線2 大宮・熊谷方面', shortName: '下り本線2', direction: 'down', y: 252, labelPosition: 'outer-bottom', labelY: 272, labelX: 50 },
 ]
 
 const OMIYA_EXTRA_TRACKS = [
@@ -104,6 +104,7 @@ const TOKYO_TERMINAL_DOWN_LIMIT_X = 24
 const INITIAL_TRAIN_COUNT = 11
 const WAITING_TRAIN_COUNT = 9
 const EARLY_ADMISSION_AFTER_OMIYA_DEPARTURE_SECONDS = 35
+const TRAIN_SWITCH_ENTRY_OFFSET = 5
 const HOLD_RISK_TRAIN_COUNT = 2
 const LONG_HOLD_RISK_SECONDS = 60
 let tokyoTurnbacksSinceLastDeadhead = 0
@@ -459,12 +460,59 @@ function holdTimeLabel(train) {
 }
 
 function trainDisplayDetails(train) {
-  return `${displayTrainName(train)} / ${trainDirectionLabel(train)} / ${trackLabel(train.track)} / +${train.delay.toFixed(1)}分 / ${trainStatusLabel(train)}`
+  return `${displayTrainName(train)} / ${trainDirectionLabel(train)} / ${operationTrackLabel(train)} / +${train.delay.toFixed(1)}分 / ${trainStatusLabel(train)}`
 }
 
 
 function trackLabel(trackId) {
   return ROUTE_TRACKS.find((t) => t.id === trackId)?.name ?? '不明な線路'
+}
+
+// --- Tokyo Terminal Track Label Helpers ---
+function tokyoTerminalTrackLabel(trackId) {
+  const labels = {
+    'up-main': '東京20番線',
+    'up-sub': '東京21番線',
+    'down-main': '東京22番線',
+    'down-sub': '東京23番線',
+  }
+
+  return labels[trackId] ?? null
+}
+
+function tokyoTerminalTrackButtonLabel(trackId) {
+  const labels = {
+    'up-main': '20番線',
+    'up-sub': '21番線',
+    'down-main': '22番線',
+    'down-sub': '23番線',
+  }
+
+  return labels[trackId] ?? null
+}
+
+function shouldUseTokyoTerminalTrackLabels(train) {
+  return Boolean(
+    train &&
+    isInTokyoTerminalAreaForTrack(train.x, train.track) &&
+    isTokyoTerminalMainTrack(routeTrackById(train.track)),
+  )
+}
+
+function operationTrackLabel(train) {
+  if (shouldUseTokyoTerminalTrackLabels(train)) {
+    return tokyoTerminalTrackLabel(train.track) ?? trackLabel(train.track)
+  }
+
+  return trackLabel(train.track)
+}
+
+function operationTrackButtonLabel(track, train) {
+  if (shouldUseTokyoTerminalTrackLabels(train)) {
+    return tokyoTerminalTrackButtonLabel(track.id) ?? track.shortName
+  }
+
+  return track.shortName
 }
 
 // --- Helper functions for waiting trains ---
@@ -809,6 +857,19 @@ function switchXsForTrack(targetTrack, train = null) {
   return []
 }
 
+function isTrainInSwitchRange(train, switchX, tolerance) {
+  if (!train || !Number.isFinite(train.x)) return false
+
+  const frontX = train.dir === 'right'
+    ? train.x + TRAIN_SWITCH_ENTRY_OFFSET
+    : train.x - TRAIN_SWITCH_ENTRY_OFFSET
+
+  return (
+    Math.abs(train.x - switchX) <= tolerance ||
+    Math.abs(frontX - switchX) <= tolerance
+  )
+}
+
 function canChangeTrackAtCurrentPosition(train, targetTrack) {
   if (!train || !targetTrack) return false
   if (train.track === targetTrack.id) return true
@@ -832,7 +893,7 @@ function canChangeTrackAtCurrentPosition(train, targetTrack) {
       ? 16
       : 10
 
-  return switchXs.some((x) => Math.abs(train.x - x) <= tolerance)
+  return switchXs.some((x) => isTrainInSwitchRange(train, x, tolerance))
 }
 
 function isAtLimitedTrackEnd(train, track) {
@@ -1609,6 +1670,26 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
                 </div>
               ))}
 
+              {TRACKS.map((track) => (
+                <div
+                  className="track-terminal-end tokyo-terminal-end"
+                  key={`${track.id}-tokyo-terminal-end`}
+                  aria-hidden="true"
+                  style={{ top: track.y }}
+                />
+              ))}
+
+              {TRACKS.map((track, index) => (
+                <span
+                  className="tokyo-terminal-track-number"
+                  key={`${track.id}-tokyo-terminal-number`}
+                  aria-hidden="true"
+                  style={{ top: track.y }}
+                >
+                  {20 + index}
+                </span>
+              ))}
+
               {OMIYA_EXTRA_TRACKS.map((track) => (
                 <div
                   className="omiya-extra-track-row"
@@ -1813,7 +1894,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
                     {(train.held || train.autoHeld) && (
                       <p className="compact-info hold-time-info">抑止時間: {holdTimeLabel(train)}</p>
                     )}
-                    <p className="compact-info">現在進路: {trackLabel(train.track)}</p>
+                    <p className="compact-info">現在進路: {operationTrackLabel(train)}</p>
                     {operationWarnings[train.id] && (
                       <p className="operation-warning">⚠ {operationWarnings[train.id]}</p>
                     )}
@@ -1835,7 +1916,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
                                 className={train.track === track.id ? 'selected' : ''}
                                 onClick={() => changeTrack(train.id, track.id)}
                               >
-                                {track.shortName}
+                                {operationTrackButtonLabel(track, train)}
                               </button>
                             )
                           })}
@@ -1891,7 +1972,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
               {(train.held || train.autoHeld) && (
                 <p className="compact-info hold-time-info">抑止時間: {holdTimeLabel(train)}</p>
               )}
-              <p className="compact-info">現在進路: {trackLabel(train.track)}</p>
+              <p className="compact-info">現在進路: {operationTrackLabel(train)}</p>
               {operationWarnings[train.id] && (
                 <span className="mobile-operation-warning">⚠ {operationWarnings[train.id]}</span>
               )}
@@ -1913,7 +1994,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
                           className={train.track === track.id ? 'selected' : ''}
                           onClick={() => changeTrack(train.id, track.id)}
                         >
-                          {track.shortName}
+                          {operationTrackButtonLabel(track, train)}
                         </button>
                       )
                     })}

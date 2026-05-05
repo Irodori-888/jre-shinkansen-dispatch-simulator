@@ -3058,3 +3058,69 @@ body {
     font-size: 10px;
   }
 }
+
+/* Wider rail map canvas while preserving the current outer UI */
+.rail-map {
+  min-width: 1280px;
+}
+
+@media (max-width: 1180px) {
+  .rail-map {
+    min-width: 1180px;
+  }
+}
+
+@media (max-width: 720px) {
+  .rail-map {
+    min-width: 1040px;
+  }
+}
+
+/* Tokyo-side track terminal brackets */
+.track-terminal-end {
+  position: absolute;
+  width: 11px;
+  height: 18px;
+  border-left: 2px solid rgba(24, 24, 27, 0.9);
+  border-top: 2px solid rgba(24, 24, 27, 0.9);
+  border-bottom: 2px solid rgba(24, 24, 27, 0.9);
+  border-radius: 4px 0 0 4px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.tokyo-terminal-end {
+  left: 32px;
+}
+
+@media (max-width: 720px) {
+  .track-terminal-end {
+    width: 9px;
+    height: 16px;
+    border-left-width: 1.5px;
+    border-top-width: 1.5px;
+    border-bottom-width: 1.5px;
+  }
+}
+
+/* Tokyo terminal platform numbers beside track ends */
+.tokyo-terminal-track-number {
+  position: absolute;
+  left: 16px;
+  transform: translateY(-50%);
+  color: rgba(24, 24, 27, 0.82);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  z-index: 3;
+}
+
+@media (max-width: 720px) {
+  .tokyo-terminal-track-number {
+    left: 17px;
+    font-size: 10px;
+  }
+}
