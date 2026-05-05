@@ -98,8 +98,8 @@ const SWITCH_POINTS = [
 ]
 
 
-const TOKYO_TERMINAL_LIMIT_X = 30
-const TOKYO_TERMINAL_DOWN_LIMIT_X = 24
+const TOKYO_TERMINAL_LIMIT_X = 28
+const TOKYO_TERMINAL_DOWN_LIMIT_X = 28
 
 const INITIAL_TRAIN_COUNT = 11
 const WAITING_TRAIN_COUNT = 9
@@ -508,7 +508,7 @@ function operationTrackLabel(train) {
 }
 
 function operationTrackButtonLabel(track, train) {
-  if (shouldUseTokyoTerminalTrackLabels(train)) {
+  if (shouldUseTokyoTerminalTrackLabels(train) && train.direction !== 'down') {
     return tokyoTerminalTrackButtonLabel(track.id) ?? track.shortName
   }
 
@@ -753,6 +753,15 @@ function isTokyoTerminalTrackOccupied(trackId, x, trains, ignoreTrainId = null) 
   })
 }
 
+function targetTrainCanUseTokyoTerminalCheck(train, targetTrack) {
+  return Boolean(
+    train &&
+    targetTrack &&
+    isTokyoTerminalMainTrack(targetTrack) &&
+    isInTokyoTerminalAreaForTrack(train.x, targetTrack.id),
+  )
+}
+
 function canUseTrack(train, targetTrack) {
   if (!targetTrack) return false
 
@@ -894,6 +903,28 @@ function canChangeTrackAtCurrentPosition(train, targetTrack) {
       : 10
 
   return switchXs.some((x) => isTrainInSwitchRange(train, x, tolerance))
+}
+
+
+// --- Helper: Can operate track button ---
+function canOperateTrackButton(train, targetTrack, trains) {
+  if (!train || !targetTrack) return false
+  if ((train.dwellRemaining ?? 0) > 0 || (train.turnbackRemaining ?? 0) > 0) return false
+  if (train.track === targetTrack.id) return true
+
+  const isTokyoTerminalOccupied =
+    targetTrainCanUseTokyoTerminalCheck(train, targetTrack) &&
+    isTokyoTerminalTrackOccupied(targetTrack.id, train.x, trains, train.id)
+
+  if (isTokyoTerminalOccupied) return false
+  if (!canUseTrack(train, targetTrack)) return false
+  if (!canChangeTrackAtCurrentPosition(train, targetTrack)) return false
+
+  if (targetTrack.id.includes('omiya')) {
+    return [64, 85].some((x) => Math.abs(train.x - x) <= 18)
+  }
+
+  return true
 }
 
 function isAtLimitedTrackEnd(train, track) {
@@ -1343,6 +1374,13 @@ export default function App() {
     const targetTrain = trains.find((t) => t.id === id)
     const targetTrack = ROUTE_TRACKS.find((t) => t.id === track)
     const trackName = targetTrack?.name ?? '不明な線路'
+    if ((targetTrain?.dwellRemaining ?? 0) > 0 || (targetTrain?.turnbackRemaining ?? 0) > 0) {
+      const warning = `${id}は停車中または折返し準備中のため、進路を構成できません。発車後に操作してください。`
+      setMessage(warning)
+      setOperationWarning(id, warning)
+      addEvent(`${formattedTime} ${id}: 停車中の進路構成を防止`)
+      return
+    }
     if (
   targetTrain &&
   targetTrack &&
@@ -1589,7 +1627,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     )}
       <header className="game-header">
         <div>
-          <p className="version">JRE Shinkansen Dispatch Simulator v2.1.2</p>
+          <p className="version">JRE Shinkansen Dispatch Simulator v2.1.3</p>
           <h1>
   <span className="title-main">JR東日本 新幹線</span>
   <span className="title-sub">遅延回復シミュレーター</span>
@@ -1761,7 +1799,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
       <div className={`train ${train.colorClass}`}>
         <div className="train-top compact">
           <strong>
-            {displayTrainName(train)} / {trainDirectionLabel(train)} / {trainStatusLabel(train)}
+            {displayTrainName(train)} / +{train.delay.toFixed(1)}分 / {trainStatusLabel(train)}
           </strong>
           {(train.held || train.autoHeld) && <span className="hold-mark">×</span>}
           {!train.held && !train.autoHeld && train.dwellRemaining > 0 && <span>⏸</span>}
@@ -1909,11 +1947,15 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
                             const track = routeTrackById(trackId)
                             if (!track) return null
 
+                            const isSelectedTrack = train.track === track.id
+                            const canOperateTrack = canOperateTrackButton(train, track, trains)
+
                             return (
                               <button
                                 type="button"
                                 key={track.id}
-                                className={train.track === track.id ? 'selected' : ''}
+                                className={`${isSelectedTrack ? 'selected' : ''} ${!canOperateTrack ? 'unavailable' : ''}`.trim()}
+                                disabled={pointsLocked || !canOperateTrack}
                                 onClick={() => changeTrack(train.id, track.id)}
                               >
                                 {operationTrackButtonLabel(track, train)}
@@ -1987,11 +2029,15 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
                       const track = routeTrackById(trackId)
                       if (!track) return null
 
+                      const isSelectedTrack = train.track === track.id
+                      const canOperateTrack = canOperateTrackButton(train, track, trains)
+
                       return (
                         <button
                           type="button"
                           key={track.id}
-                          className={train.track === track.id ? 'selected' : ''}
+                          className={`${isSelectedTrack ? 'selected' : ''} ${!canOperateTrack ? 'unavailable' : ''}`.trim()}
+                          disabled={pointsLocked || !canOperateTrack}
                           onClick={() => changeTrack(train.id, track.id)}
                         >
                           {operationTrackButtonLabel(track, train)}

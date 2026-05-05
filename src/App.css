@@ -3124,3 +3124,19 @@ body {
     font-size: 10px;
   }
 }
+
+/* Operation route buttons: unavailable state */
+.pc-track-buttons button.unavailable,
+.mobile-track-buttons button.unavailable,
+.pc-track-buttons button:disabled,
+.mobile-track-buttons button:disabled {
+  opacity: 0.42;
+  filter: grayscale(0.55);
+  cursor: not-allowed;
+}
+
+.pc-track-buttons button.selected,
+.mobile-track-buttons button.selected {
+  opacity: 1;
+  filter: none;
+}
