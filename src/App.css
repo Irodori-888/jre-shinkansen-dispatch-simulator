@@ -233,14 +233,6 @@ button {
   background: #3f3f46;
 }
 
-.track-row span {
-  display: inline-block;
-  margin-top: 4px;
-  color: #71717a;
-  font-size: 11px;
-  line-height: 1.2;
-  white-space: nowrap;
-}
 
 /* 大宮駅副本線 */
 .omiya-extra-track-row {
@@ -254,14 +246,6 @@ button {
   background: #3f3f46;
 }
 
-.omiya-extra-track-row span {
-  display: inline-block;
-  margin-top: 4px;
-  color: #71717a;
-  font-size: 11px;
-  line-height: 1.2;
-  white-space: nowrap;
-}
 
 /* 上下線境界 */
 .direction-boundary {
@@ -368,12 +352,6 @@ button {
   margin-top: 2px;
 }
 
-.near-station {
-  margin: 4px 0 0;
-  text-align: center;
-  font-size: 11px;
-  color: #525252;
-}
 
 /* 車両カラー */
 .train-green-pink {
@@ -909,11 +887,6 @@ button {
     font-size: clamp(21px, 6vw, 26px);
     letter-spacing: -0.06em;
   }
-}
-
-/* PC hover train details */
-.train-wrap {
-  z-index: 4;
 }
 
 .train-wrap:hover {
@@ -3212,18 +3185,10 @@ body {
   backdrop-filter: blur(6px);
 }
 
-/* STEP 2〜3：指令操作盤内に入った場合はカード内レイアウトを優先 */
-.practice-tutorial-guide-in-panel.practice-tutorial-guide-step-1,
-.practice-tutorial-guide-in-panel.practice-tutorial-guide-step-2 {
-  top: auto;
-  width: 100%;
-  background: rgba(240, 253, 244, 0.92);
-  backdrop-filter: none;
-}
 
-/* 完了：中央より少し下 */
-.practice-tutorial-guide-step-4 {
-  top: calc(50% + 72px);
+/* 完了：指令操作盤の列車名付近に重ねて表示 */
+.practice-tutorial-guide-step-3 {
+  top: calc(50% - 72px);
   transform: translate(-50%, -50%);
 }
 
@@ -3314,8 +3279,8 @@ body {
     backdrop-filter: none;
   }
 
-  .practice-tutorial-guide-step-4 {
-    top: calc(50% + 56px);
+  .practice-tutorial-guide-step-3 {
+    top: calc(50% - 36px);
     bottom: auto;
     transform: translate(-50%, -50%);
   }
@@ -3335,8 +3300,7 @@ body {
 }
 
 .practice-tutorial-guide-in-panel.practice-tutorial-guide-step-1,
-.practice-tutorial-guide-in-panel.practice-tutorial-guide-step-2,
-.practice-tutorial-guide-in-panel.practice-tutorial-guide-step-3 {
+.practice-tutorial-guide-in-panel.practice-tutorial-guide-step-2 {
   top: auto;
   right: auto;
   bottom: auto;

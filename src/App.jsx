@@ -168,12 +168,8 @@ const PRACTICE_TUTORIAL_STEPS = [
     body: 'もう一度「抑止解除」を押すと、列車を再び走らせることができます。',
   },
   {
-    title: '分岐器を使ってみましょう',
-    body: '分岐点付近では進路を変更できます。はっきりと表示されている進路ボタンを押して、列車を別の線路へ転線させてみましょう。暗いボタンは現在の位置では操作できません。',
-  },
-  {
     title: '操作チュートリアル完了',
-    body: '基本操作は完了です。一度、指令操作盤を閉じ、運転開始を押して列車整理を開始してください。',
+    body: '基本操作は完了です。分岐点付近では、明るく表示されている進路ボタンから列車の進路を変更できます。暗いボタンは現在の位置では操作できません。一度、指令操作盤を閉じ、運転開始を押して列車整理を開始してください。',
   },
 ]
 
@@ -1240,10 +1236,104 @@ export default function App() {
     setPracticeTutorialPromptOpen(true)
   }
 
+  // --- Practice Tutorial Target Helper Section ---
+  function practiceTutorialTargetScore(train) {
+    if (!train) return -Infinity
+    // Prefer up trains at Omiya, not held, not dwell/turnback, highest delay
+    if (
+      train.direction === 'up' &&
+      train.x === 75 &&
+      train.track === 'up-main' &&
+      !train.held &&
+      !train.autoHeld &&
+      (train.dwellRemaining ?? 0) <= 0 &&
+      (train.turnbackRemaining ?? 0) <= 0
+    ) {
+      return 10000 + (train.delay ?? 0)
+    }
+    // Prefer up trains at Omiya, not held, not dwell/turnback
+    if (
+      train.direction === 'up' &&
+      train.x === 75 &&
+      train.track === 'up-main' &&
+      !train.held &&
+      !train.autoHeld &&
+      (train.dwellRemaining ?? 0) <= 0 &&
+      (train.turnbackRemaining ?? 0) <= 0
+    ) {
+      return 8000 + (train.delay ?? 0)
+    }
+    // Up trains at Omiya, not held
+    if (
+      train.direction === 'up' &&
+      train.x === 75 &&
+      train.track === 'up-main' &&
+      !train.held &&
+      !train.autoHeld
+    ) {
+      return 6000 + (train.delay ?? 0)
+    }
+    // Up trains at Omiya
+    if (train.direction === 'up' && train.x === 75 && train.track === 'up-main') {
+      return 4000 + (train.delay ?? 0)
+    }
+    // Up trains not held, not dwell/turnback
+    if (
+      train.direction === 'up' &&
+      !train.held &&
+      !train.autoHeld &&
+      (train.dwellRemaining ?? 0) <= 0 &&
+      (train.turnbackRemaining ?? 0) <= 0
+    ) {
+      return 2000 + (train.delay ?? 0)
+    }
+    // Any up train
+    if (train.direction === 'up') {
+      return 1000 + (train.delay ?? 0)
+    }
+    // Otherwise, deprioritize
+    return -Infinity
+  }
+
+  function findPracticeTutorialTargetTrain(trains) {
+    return trains
+      .filter((train) => practiceTutorialTargetScore(train) > -Infinity)
+      .sort((a, b) => practiceTutorialTargetScore(b) - practiceTutorialTargetScore(a))[0] ?? null
+  }
+
+  function makePracticeTutorialReadyTrain(train) {
+    if (!train) return null
+
+    return {
+      ...train,
+      direction: 'up',
+      dir: 'left',
+      track: 'up-main',
+      x: 75,
+      held: false,
+      autoHeld: false,
+      holdSeconds: 0,
+      dwellRemaining: null,
+      turnbackRemaining: null,
+      awaitingTokyoDownTransfer: false,
+      stoppedStations: Array.from(new Set([...(train.stoppedStations ?? []), 'omiya'])),
+      omiyaDepartureSeconds: null,
+      earlyAdmissionTriggeredByOmiyaDeparture: false,
+    }
+  }
+
   const startPracticeTutorial = () => {
-    const targetTrain = trains
+    const existingTargetTrain = findPracticeTutorialTargetTrain(trains)
+    const fallbackTrain = trains
       .filter((train) => (train.dwellRemaining ?? 0) <= 0 && (train.turnbackRemaining ?? 0) <= 0)
-      .sort((a, b) => b.delay - a.delay)[0] ?? trains[0]
+      .sort((a, b) => (b.delay ?? 0) - (a.delay ?? 0))[0] ?? trains[0]
+    const targetTrain = existingTargetTrain ?? makePracticeTutorialReadyTrain(fallbackTrain)
+
+    if (targetTrain) {
+      setTrains((prev) =>
+        prev.map((train) => (train.id === targetTrain.id ? targetTrain : train)),
+      )
+    }
 
     setPracticeTutorialTrainId(targetTrain?.id ?? null)
     setPracticeTutorialStep(0)
@@ -1525,9 +1615,6 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     setOperationWarning(id, `${trackName}へ進路を構成中です。`)
     addEvent(`${formattedTime} ${id}: ${trackName}へ進路構成`)
 
-    if (practiceTutorialOpen && practiceTutorialTrainId === id && practiceTutorialStep === 3) {
-      setPracticeTutorialStep(4)
-    }
 
     window.setTimeout(() => {
       setTrains((prev) =>
