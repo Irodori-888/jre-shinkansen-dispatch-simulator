@@ -123,9 +123,14 @@ const TUTORIAL_STEPS = [
     body: '上り列車は大宮方面から東京方面へ、下り列車は東京方面から大宮方面へ進みます。大宮付近には上り・下りそれぞれに副本線があり、列車を待避させたり進路を整理したりするときに活用できます。',
   },
   {
+    title: '操作したい列車を選択する',
+    body: '列車に表示される「+9.0分」は遅延時間です。遅れの大きい列車をクリックまたはタップして、指令操作盤を開きましょう。',
+  },
+  {
     title: '指令操作盤',
     body: '列車を選ぶと、列車名・遅延時間・列車の状態・現在進路を確認できます。進路を変える場合は分岐点付近で操作します。必要に応じて抑止と優先を使い分けましょう。',
   },
+
   {
     title: '抑止と優先',
     body: '抑止は列車を一時的に止め、他の列車の進路を確保したいときに使います。優先は選んだ列車の遅延回復を早めますが、ほかの列車への影響に注意しましょう。',
@@ -145,6 +150,30 @@ const TUTORIAL_STEPS = [
   {
     title: '始業前点呼',
     body: 'ここからは、あなたの判断が列車の流れを左右します。安全を守りながら、東京〜大宮間の運行を整理し、遅延回復に挑みましょう。',
+  },
+]
+
+
+const PRACTICE_TUTORIAL_STEPS = [
+  {
+    title: '列車を選択しましょう',
+    body: '大宮駅付近で、上り本線(東京方面)に向かう列車を１つクリックまたはタップして、指令操作盤を開きましょう。必要に応じて画面をスクロールしてください。',
+  },
+  {
+    title: '抑止を使ってみましょう',
+    body: '指令操作盤の「抑止」を押すと、列車を一時的に止めることができます。',
+  },
+  {
+    title: '抑止を解除しましょう',
+    body: 'もう一度「抑止解除」を押すと、列車を再び走らせることができます。',
+  },
+  {
+    title: '分岐器を使ってみましょう',
+    body: '分岐点付近では進路を変更できます。はっきりと表示されている進路ボタンを押して、列車を別の線路へ転線させてみましょう。暗いボタンは現在の位置では操作できません。',
+  },
+  {
+    title: '操作チュートリアル完了',
+    body: '基本操作は完了です。一度、指令操作盤を閉じ、運転開始を押して列車整理を開始してください。',
   },
 ]
 
@@ -1145,6 +1174,10 @@ export default function App() {
     return window.localStorage.getItem('tutorialSeen') !== 'true'
   })
   const [tutorialStep, setTutorialStep] = useState(0)
+  const [practiceTutorialPromptOpen, setPracticeTutorialPromptOpen] = useState(false)
+  const [practiceTutorialOpen, setPracticeTutorialOpen] = useState(false)
+  const [practiceTutorialStep, setPracticeTutorialStep] = useState(0)
+  const [practiceTutorialTrainId, setPracticeTutorialTrainId] = useState(null)
   const [operationWarnings, setOperationWarnings] = useState({})
   const [score, setScore] = useState(1000)
   const [events, setEvents] = useState([])
@@ -1186,6 +1219,8 @@ export default function App() {
 
   const currentTutorialStep = TUTORIAL_STEPS[tutorialStep] ?? TUTORIAL_STEPS[0]
   const isLastTutorialStep = tutorialStep === TUTORIAL_STEPS.length - 1
+  const currentPracticeTutorialStep = PRACTICE_TUTORIAL_STEPS[practiceTutorialStep] ?? PRACTICE_TUTORIAL_STEPS[0]
+  const isPracticeTutorialComplete = practiceTutorialStep === PRACTICE_TUTORIAL_STEPS.length - 1
 
   const closeTutorial = () => {
     if (typeof window !== 'undefined') {
@@ -1193,6 +1228,42 @@ export default function App() {
     }
     setTutorialOpen(false)
     setTutorialStep(0)
+  }
+
+  // --- Practice Tutorial Functions ---
+  const finishTextTutorial = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('tutorialSeen', 'true')
+    }
+    setTutorialOpen(false)
+    setTutorialStep(0)
+    setPracticeTutorialPromptOpen(true)
+  }
+
+  const startPracticeTutorial = () => {
+    const targetTrain = trains
+      .filter((train) => (train.dwellRemaining ?? 0) <= 0 && (train.turnbackRemaining ?? 0) <= 0)
+      .sort((a, b) => b.delay - a.delay)[0] ?? trains[0]
+
+    setPracticeTutorialTrainId(targetTrain?.id ?? null)
+    setPracticeTutorialStep(0)
+    setPracticeTutorialPromptOpen(false)
+    setPracticeTutorialOpen(true)
+    setMessage('操作チュートリアルを開始します。まずは遅れている列車を選択しましょう。')
+  }
+
+  const skipPracticeTutorial = () => {
+    setPracticeTutorialPromptOpen(false)
+    setPracticeTutorialOpen(false)
+    setPracticeTutorialStep(0)
+    setPracticeTutorialTrainId(null)
+  }
+
+  const completePracticeTutorial = () => {
+    setPracticeTutorialOpen(false)
+    setPracticeTutorialStep(0)
+    setPracticeTutorialTrainId(null)
+    setMessage('操作チュートリアルが完了しました。通常の運転整理を開始できます。')
   }
 
   const openTutorial = () => {
@@ -1355,6 +1426,15 @@ export default function App() {
     const target = trains.find((t) => t.id === id)
     const willHold = !target?.held
 
+    // --- Practice Tutorial Step Logic ---
+    if (practiceTutorialOpen && practiceTutorialTrainId === id) {
+      if (practiceTutorialStep === 1 && willHold) {
+        setPracticeTutorialStep(2)
+      } else if (practiceTutorialStep === 2 && !willHold) {
+        setPracticeTutorialStep(3)
+      }
+    }
+
     setTrains((prev) =>
       prev.map((t) => (t.id === id ? { ...t, held: willHold } : t)),
     )
@@ -1444,6 +1524,10 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     )
     setOperationWarning(id, `${trackName}へ進路を構成中です。`)
     addEvent(`${formattedTime} ${id}: ${trackName}へ進路構成`)
+
+    if (practiceTutorialOpen && practiceTutorialTrainId === id && practiceTutorialStep === 3) {
+      setPracticeTutorialStep(4)
+    }
 
     window.setTimeout(() => {
       setTrains((prev) =>
@@ -1568,7 +1652,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
           className="primary-button"
           onClick={() => {
             if (isLastTutorialStep) {
-              closeTutorial()
+              finishTextTutorial()
               return
             }
             setTutorialStep((step) => Math.min(TUTORIAL_STEPS.length - 1, step + 1))
@@ -1580,6 +1664,49 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     </div>
   </div>
 )}
+
+    {practiceTutorialPromptOpen && (
+      <div className="tutorial-overlay" role="dialog" aria-label="操作チュートリアルの確認">
+        <div className="tutorial-card practice-tutorial-prompt-card">
+          <div className="tutorial-body">
+            <strong>操作チュートリアルをプレイしますか？</strong>
+            <p>実際に列車を操作しながら練習できます。</p>
+          </div>
+
+          <div className="tutorial-actions practice-tutorial-prompt-actions">
+            <button type="button" className="secondary-button" onClick={skipPracticeTutorial}>
+              いいえ
+            </button>
+            <button type="button" className="primary-button" onClick={startPracticeTutorial}>
+              はい
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {practiceTutorialOpen && (practiceTutorialStep === 0 || isPracticeTutorialComplete) && (
+      <div
+        className={`practice-tutorial-guide practice-tutorial-guide-step-${practiceTutorialStep}`}
+        role="status"
+        aria-live="polite"
+      >
+        <span>操作チュートリアル STEP {practiceTutorialStep + 1} / {PRACTICE_TUTORIAL_STEPS.length}</span>
+        <strong>{currentPracticeTutorialStep.title}</strong>
+        <p>{currentPracticeTutorialStep.body}</p>
+        <div className="practice-tutorial-actions">
+          {isPracticeTutorialComplete ? (
+            <button type="button" className="primary-button" onClick={completePracticeTutorial}>
+              本番へ進む
+            </button>
+          ) : (
+            <button type="button" className="secondary-button" onClick={skipPracticeTutorial}>
+              チュートリアルを終了
+            </button>
+          )}
+        </div>
+      </div>
+    )}
 
     {gameOver && (
       <div className="game-over-overlay" role="alert">
@@ -1627,20 +1754,25 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     )}
       <header className="game-header">
         <div>
-          <p className="version">JRE Shinkansen Dispatch Simulator v2.1.3</p>
+          <p className="version">JRE Shinkansen Dispatch Simulator v3.0.0a</p>
           <h1>
   <span className="title-main">JR東日本 新幹線</span>
   <span className="title-sub">遅延回復シミュレーター</span>
 </h1>
           <p className="lead">
-            輸送指令として各列車の運転士たちに指示を送り、遅延回復を行いましょう。
+            輸送指令として各列車の運転士たちに指示を送り、遅延回復を目指しましょう。
       
           </p>
         </div>
 
-          <button className="tutorial-open-button" type="button" onClick={openTutorial}>
-             遊び方
-          </button>
+          <div className="header-tutorial-actions">
+  <button className="tutorial-open-button" type="button" onClick={openTutorial}>
+     遊び方
+  </button>
+  <button className="practice-tutorial-open-button" type="button" onClick={startPracticeTutorial}>
+    チュートリアルを開始
+  </button>
+</div>
       </header>
 
       <section className="stats">
@@ -1783,18 +1915,23 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
   return (
     <button
       type="button"
-      className={`train-wrap ${popupHorizontalClass} ${popupVerticalClass}`}
+      className={`train-wrap ${popupHorizontalClass} ${popupVerticalClass} ${practiceTutorialOpen && practiceTutorialStep === 0 && (!practiceTutorialTrainId || practiceTutorialTrainId === train.id) ? 'practice-target' : ''}`.trim()}
       key={train.id}
       style={{
         left: `${train.x}%`,
         top: trackY - 23,
       }}
-      onClick={() =>
+      onClick={() => {
         setSelectedTrainGroup({
           title: '列車詳細',
           trainIds: [train.id],
         })
-      }
+
+        if (practiceTutorialOpen && practiceTutorialStep === 0) {
+          setPracticeTutorialTrainId(train.id)
+          setPracticeTutorialStep(1)
+        }
+      }}
     >
       <div className={`train ${train.colorClass}`}>
         <div className="train-top compact">
@@ -1922,6 +2059,23 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
               </button>
             </div>
 
+            {practiceTutorialOpen && practiceTutorialStep > 0 && !isPracticeTutorialComplete && (
+              <div
+                className={`practice-tutorial-guide practice-tutorial-guide-in-panel practice-tutorial-guide-step-${practiceTutorialStep}`}
+                role="status"
+                aria-live="polite"
+              >
+                <span>操作チュートリアル STEP {practiceTutorialStep + 1} / {PRACTICE_TUTORIAL_STEPS.length}</span>
+                <strong>{currentPracticeTutorialStep.title}</strong>
+                <p>{currentPracticeTutorialStep.body}</p>
+                <div className="practice-tutorial-actions">
+                  <button type="button" className="secondary-button" onClick={skipPracticeTutorial}>
+                    チュートリアルを終了
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="pc-train-operation-list">
               {selectedTrainGroupDetails.trains.map((train) => (
                 <section className="pc-train-operation-item" key={train.id}>
@@ -2004,6 +2158,23 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     ×
   </button>
 </div>
+
+      {practiceTutorialOpen && practiceTutorialStep > 0 && !isPracticeTutorialComplete && (
+        <div
+          className={`practice-tutorial-guide practice-tutorial-guide-in-panel practice-tutorial-guide-step-${practiceTutorialStep}`}
+          role="status"
+          aria-live="polite"
+        >
+          <span>操作チュートリアル STEP {practiceTutorialStep + 1} / {PRACTICE_TUTORIAL_STEPS.length}</span>
+          <strong>{currentPracticeTutorialStep.title}</strong>
+          <p>{currentPracticeTutorialStep.body}</p>
+          <div className="practice-tutorial-actions">
+            <button type="button" className="secondary-button" onClick={skipPracticeTutorial}>
+              チュートリアルを終了
+            </button>
+          </div>
+        </div>
+      )}
 
       <ol className="mobile-train-group-list mobile-operation-list">
         {selectedTrainGroupDetails.trains.map((train) => (
