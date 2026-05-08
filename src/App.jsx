@@ -101,7 +101,8 @@ const SWITCH_POINTS = [
 const TOKYO_TERMINAL_LIMIT_X = 28
 const TOKYO_TERMINAL_DOWN_LIMIT_X = 28
 
-const INITIAL_TRAIN_COUNT = 11
+const INITIAL_TRAIN_COUNT = 12
+const BEGINNER_INITIAL_TRAIN_COUNT = 8
 const WAITING_TRAIN_COUNT = 9
 const EARLY_ADMISSION_AFTER_OMIYA_DEPARTURE_SECONDS = 35
 const TRAIN_SWITCH_ENTRY_OFFSET = 5
@@ -130,14 +131,13 @@ const TUTORIAL_STEPS = [
     title: '指令操作盤',
     body: '列車を選ぶと、列車名・遅延時間・列車の状態・現在進路を確認できます。進路を変える場合は分岐点付近で操作します。必要に応じて抑止と優先を使い分けましょう。',
   },
-
   {
     title: '抑止と優先',
     body: '抑止は列車を一時的に止め、他の列車の進路を確保したいときに使います。優先は選んだ列車の遅延回復を早めますが、ほかの列車への影響に注意しましょう。',
   },
   {
-    title: '後続列車',
-    body: '後続列車一覧を開くと、これから大宮方面から入線する列車を確認できます。',
+    title: '後続列車について',
+    body: 'これから大宮方面から東京方面に向けて入線する列車です。後続列車一覧を開くと確認できます。',
   },
   {
     title: '安全リスク',
@@ -146,6 +146,10 @@ const TUTORIAL_STEPS = [
   {
     title: '評価のしくみ',
     body: '評価は、遅延回復までの速さ、安全リスクの低さ、優先使用の少なさによって変動します。安全を守りながら、できるだけ早く総遅延を減らすことが高評価につながります。',
+  },
+  {
+    title: '難易度について',
+    body: '「新入り指令員モード」では列車本数が少なめになり、危険な操作はシステム側で予防されます。「熟練指令員モード」では列車の本数が多めになり、危険な操作を行うと列車事故として即ゲームオーバーになります。',
   },
   {
     title: '始業前点呼',
@@ -279,7 +283,8 @@ function createTrainPlan(direction, assignedPlatform) {
   return `大宮${assignedPlatform.number}番線 → 上野${uenoPlatform.number}番線 → 東京${tokyoPlatform.number}番線`
 }
 
-function generateInitialTrains(count = INITIAL_TRAIN_COUNT) {
+function generateInitialTrains(mode = 'prevent', count = INITIAL_TRAIN_COUNT) {
+  const initialCount = mode === 'prevent' ? BEGINNER_INITIAL_TRAIN_COUNT : count
   const usedNumbers = new Set()
   const tokyo = STATIONS.find((station) => station.id === 'tokyo')
   const tokyoStopX = tokyo?.stopX ?? tokyo?.labelX ?? tokyo?.x ?? 12
@@ -324,24 +329,48 @@ function generateInitialTrains(count = INITIAL_TRAIN_COUNT) {
     }),
   )
 
-  const remainingCount = Math.max(0, count - tokyoTerminalTrains.length)
-  const remainingTrains = Array.from({ length: remainingCount }, (_, index) => {
+  const remainingCount = Math.max(0, initialCount - tokyoTerminalTrains.length)
+  const remainingTrains = []
+  const placedTrains = [...tokyoTerminalTrains]
+  const minimumInitialGap = 9
+
+  for (let index = 0; index < remainingCount; index += 1) {
     const direction = index % 2 === 0 ? 'up' : 'down'
     const candidateTracks = TRACKS.filter((item) => item.direction === direction)
-    const track = pickRandom(candidateTracks)
-    const baseX =
-      direction === 'up'
-        ? upPositions[index % upPositions.length]
-        : downPositions[index % downPositions.length]
-    const jitter = randomInt(-1, 1)
+    const candidatePositions = direction === 'up' ? upPositions : downPositions
 
-    return createTrain({
+    const candidates = candidateTracks.flatMap((track) =>
+      candidatePositions.map((baseX, positionIndex) => ({
+        track,
+        baseX,
+        positionIndex,
+      })),
+    )
+
+    const availableCandidates = candidates.filter(({ track, baseX }) =>
+      !placedTrains.some((train) =>
+        train.track === track.id && Math.abs(train.x - baseX) < minimumInitialGap,
+      ),
+    )
+
+    const selectedCandidate =
+      availableCandidates[index % Math.max(availableCandidates.length, 1)] ??
+      candidates.find(({ track, baseX }) =>
+        !placedTrains.some((train) => train.track === track.id && Math.abs(train.x - baseX) < 5),
+      ) ??
+      candidates[index % candidates.length]
+
+    const jitter = randomInt(-1, 1)
+    const newTrain = createTrain({
       direction,
-      track,
-      x: clamp(baseX + jitter, 0, 100),
+      track: selectedCandidate.track,
+      x: clamp(selectedCandidate.baseX + jitter, 0, 100),
       index: TRACKS.length + index,
     })
-  })
+
+    remainingTrains.push(newTrain)
+    placedTrains.push(newTrain)
+  }
 
   return [...tokyoTerminalTrains, ...remainingTrains]
 }
@@ -778,6 +807,64 @@ function isTokyoTerminalTrackOccupied(trackId, x, trains, ignoreTrainId = null) 
   })
 }
 
+// --- Switch Conflict Helper Functions ---
+function trainFrontX(train) {
+  return train.dir === 'right'
+    ? train.x + TRAIN_SWITCH_ENTRY_OFFSET
+    : train.x - TRAIN_SWITCH_ENTRY_OFFSET
+}
+
+function trainRearX(train) {
+  return train.dir === 'right'
+    ? train.x - TRAIN_SWITCH_ENTRY_OFFSET
+    : train.x + TRAIN_SWITCH_ENTRY_OFFSET
+}
+
+function hasTrainFullyClearedSwitch(train, switchX) {
+  const rearX = trainRearX(train)
+  return train.dir === 'right' ? rearX > switchX : rearX < switchX
+}
+
+function isTrainStillClearingSwitch(train, switchX, tolerance = 18) {
+  const frontX = trainFrontX(train)
+  const rearX = trainRearX(train)
+  const bodyMinX = Math.min(frontX, rearX)
+  const bodyMaxX = Math.max(frontX, rearX)
+  const isSwitchBetweenFrontAndRear = switchX >= bodyMinX && switchX <= bodyMaxX
+  const isNearSwitch =
+    Math.abs(train.x - switchX) <= tolerance ||
+    Math.abs(frontX - switchX) <= tolerance ||
+    Math.abs(rearX - switchX) <= tolerance
+
+  return !hasTrainFullyClearedSwitch(train, switchX) && (isSwitchBetweenFrontAndRear || isNearSwitch)
+}
+
+function switchConflictTrainOnTargetTrack(train, targetTrack, trains, ignoreTrainId = null) {
+  if (!train || !targetTrack) return null
+
+  const switchXs = switchXsForTrack(targetTrack, train)
+  if (switchXs.length === 0) return null
+
+  return trains.find((other) => {
+    if (other.id === ignoreTrainId || other.id === train.id) return false
+    if (other.track !== targetTrack.id) return false
+    if ((other.dwellRemaining ?? 0) > 0 || (other.turnbackRemaining ?? 0) > 0) return false
+
+    return switchXs.some((switchX) => {
+      const trainNearSwitch = isTrainInSwitchRange(train, switchX, 18)
+      const otherStillClearingSwitch = isTrainStillClearingSwitch(other, switchX, 18)
+
+      return trainNearSwitch && otherStillClearingSwitch
+    })
+  }) ?? null
+}
+
+function switchConflictMessage(conflictTrain, targetTrack) {
+  const conflictTrainName = conflictTrain ? displayTrainName(conflictTrain) : '別の列車'
+  const targetTrackName = targetTrack?.name ?? '転線先の線路'
+  return `${targetTrackName}の分岐器付近に${conflictTrainName}が在線している状態で、後続列車を転線させました。`
+}
+
 function targetTrainCanUseTokyoTerminalCheck(train, targetTrack) {
   return Boolean(
     train &&
@@ -932,24 +1019,51 @@ function canChangeTrackAtCurrentPosition(train, targetTrack) {
 
 
 // --- Helper: Can operate track button ---
-function canOperateTrackButton(train, targetTrack, trains) {
-  if (!train || !targetTrack) return false
-  if ((train.dwellRemaining ?? 0) > 0 || (train.turnbackRemaining ?? 0) > 0) return false
-  if (train.track === targetTrack.id) return true
+function trackOperationUnavailableReason(train, targetTrack, trains, conflictMode = 'prevent') {
+  if (!train || !targetTrack) return '列車または進路情報を取得できません。'
+  if ((train.dwellRemaining ?? 0) > 0 || (train.turnbackRemaining ?? 0) > 0) {
+    return '停車中または折返し準備中のため、発車後に操作できます。'
+  }
+  if (train.track === targetTrack.id) return ''
 
   const isTokyoTerminalOccupied =
     targetTrainCanUseTokyoTerminalCheck(train, targetTrack) &&
     isTokyoTerminalTrackOccupied(targetTrack.id, train.x, trains, train.id)
 
-  if (isTokyoTerminalOccupied) return false
-  if (!canUseTrack(train, targetTrack)) return false
-  if (!canChangeTrackAtCurrentPosition(train, targetTrack)) return false
-
-  if (targetTrack.id.includes('omiya')) {
-    return [64, 85].some((x) => Math.abs(train.x - x) <= 18)
+  if (isTokyoTerminalOccupied) {
+    return '東京駅構内では各線に1編成しか入線できないため、現在は選択できません。'
   }
 
-  return true
+  const switchConflictTrain = switchConflictTrainOnTargetTrack(train, targetTrack, trains, train.id)
+  if (switchConflictTrain && conflictMode !== 'strict') {
+    return `${targetTrack.name}の分岐器付近に${displayTrainName(switchConflictTrain)}がいるため、現在は転線できません。`
+  }
+
+  if (!canUseTrack(train, targetTrack)) {
+    return train.direction === 'down'
+      ? '東京発の下り列車のため、上り本線には進路を構成できません。'
+      : `${trackLabel(targetTrack.id)}は、東京駅構内にいる上り列車だけが使用できます。`
+  }
+
+  if (!canChangeTrackAtCurrentPosition(train, targetTrack)) {
+    const switchList = switchXsForTrack(targetTrack, train).join(' / ')
+    return switchList
+      ? `分岐点付近にいないため、現在は転線できません。操作可能位置は x=${switchList} 付近です。`
+      : '分岐点付近にいないため、現在は転線できません。'
+  }
+
+  if (targetTrack.id.includes('omiya')) {
+    const nearOmiyaExtraSwitch = [64, 85].some((x) => Math.abs(train.x - x) <= 18)
+    if (!nearOmiyaExtraSwitch) {
+      return '大宮以北の分岐点付近にいないため、副本線へ進路を構成できません。'
+    }
+  }
+
+  return ''
+}
+
+function canOperateTrackButton(train, targetTrack, trains, conflictMode = 'prevent') {
+  return trackOperationUnavailableReason(train, targetTrack, trains, conflictMode) === ''
 }
 
 function isAtLimitedTrackEnd(train, track) {
@@ -1152,14 +1266,18 @@ function nextTrainState(train, allTrains) {
 }
 
 export default function App() {
-  const [trains, setTrains] = useState(() => generateInitialTrains())
+  const [trains, setTrains] = useState(() => generateInitialTrains('prevent'))
   const [waitingTrains, setWaitingTrains] = useState(() => generateWaitingTrains())
   const [selectedTrainGroup, setSelectedTrainGroup] = useState(null)
   const [waitingListOpen, setWaitingListOpen] = useState(false)
+  const [difficultyMenuOpen, setDifficultyMenuOpen] = useState(false)
   const [upRouteOpenSeconds, setUpRouteOpenSeconds] = useState(0)
   const [running, setRunning] = useState(false)
   const [gameOver, setGameOver] = useState(false)
   const [gameClear, setGameClear] = useState(false)
+  const [gameOverReason, setGameOverReason] = useState('列車事故発生。防護無線を発報しました。全列車の運転を停止します。')
+  const [gameOverAdvice, setGameOverAdvice] = useState('次回は列車同士の間隔と進路の重複に注意しながら、早めに抑止や進路変更を行いましょう。')
+  const [tokyoTerminalConflictMode, setTokyoTerminalConflictMode] = useState('prevent')
   const [time, setTime] = useState(15 * 3600 + 23 * 60)
   const [pointsLocked, setPointsLocked] = useState(false)
   const [message, setMessage] = useState(
@@ -1217,6 +1335,52 @@ export default function App() {
   const isLastTutorialStep = tutorialStep === TUTORIAL_STEPS.length - 1
   const currentPracticeTutorialStep = PRACTICE_TUTORIAL_STEPS[practiceTutorialStep] ?? PRACTICE_TUTORIAL_STEPS[0]
   const isPracticeTutorialComplete = practiceTutorialStep === PRACTICE_TUTORIAL_STEPS.length - 1
+  const tokyoTerminalConflictModeLabel =
+    tokyoTerminalConflictMode === 'strict' ? '熟練指令員モード' : '新入り指令員モード'
+  const tokyoTerminalConflictModeShortLabel =
+    tokyoTerminalConflictMode === 'strict' ? '熟練指令員' : '新入り指令員'
+
+  const tokyoTerminalConflictMessage = (train, targetTrack) => {
+    const terminalTrackName = tokyoTerminalTrackLabel(targetTrack?.id) ?? targetTrack?.name ?? '不明な番線'
+    return `すでに列車がいる${terminalTrackName}に後続列車を入線させました。`
+  }
+
+  const applyDifficultyMode = (nextMode) => {
+    if (running && typeof window !== 'undefined') {
+      const shouldChangeMode = window.confirm(
+        '難易度を変更すると、現在の運転整理はリセットされます。変更しますか？',
+      )
+
+      if (!shouldChangeMode) return
+    }
+    setDifficultyMenuOpen(false)
+    setTokyoTerminalConflictMode(nextMode)
+    setTrains(generateInitialTrains(nextMode))
+    setWaitingTrains(generateWaitingTrains())
+    tokyoTurnbacksSinceLastDeadhead = 0
+    setSelectedTrainGroup(null)
+    setWaitingListOpen(false)
+    setUpRouteOpenSeconds(0)
+    setRunning(false)
+    setGameOver(false)
+    setGameClear(false)
+    setGameOverReason('列車事故発生。防護無線を発報しました。全列車の運転を停止します。')
+    setGameOverAdvice('次回は列車同士の間隔と進路の重複に注意しながら、早めに抑止や進路変更を行いましょう。')
+    setTime(15 * 3600 + 23 * 60)
+    setPointsLocked(false)
+    setScore(1000)
+    setOperationWarnings({})
+    setPracticeTutorialOpen(false)
+    setPracticeTutorialPromptOpen(false)
+    setPracticeTutorialStep(0)
+    setPracticeTutorialTrainId(null)
+    setMessage(
+      nextMode === 'strict'
+        ? '熟練指令員モードに切り替えました。整理する列車の本数が増加しました。'
+        : '新入り指令員モードに切り替えました。',
+    )
+    setEvents([])
+  }
 
   const closeTutorial = () => {
     if (typeof window !== 'undefined') {
@@ -1250,18 +1414,6 @@ export default function App() {
       (train.turnbackRemaining ?? 0) <= 0
     ) {
       return 10000 + (train.delay ?? 0)
-    }
-    // Prefer up trains at Omiya, not held, not dwell/turnback
-    if (
-      train.direction === 'up' &&
-      train.x === 75 &&
-      train.track === 'up-main' &&
-      !train.held &&
-      !train.autoHeld &&
-      (train.dwellRemaining ?? 0) <= 0 &&
-      (train.turnbackRemaining ?? 0) <= 0
-    ) {
-      return 8000 + (train.delay ?? 0)
     }
     // Up trains at Omiya, not held
     if (
@@ -1353,7 +1505,7 @@ export default function App() {
     setPracticeTutorialOpen(false)
     setPracticeTutorialStep(0)
     setPracticeTutorialTrainId(null)
-    setMessage('操作チュートリアルが完了しました。通常の運転整理を開始できます。')
+    setMessage('操作チュートリアルが完了しました。左上の「▶ 運転開始」を押して、運転整理を始めましょう。')
   }
 
   const openTutorial = () => {
@@ -1459,11 +1611,14 @@ export default function App() {
         const hasManyHeldTrains = heldTrains.length >= HOLD_RISK_TRAIN_COUNT
 
         if (nextRisk >= 13) {
+          const accidentReason = '既に列車がいる線路に転線したため、列車事故が発生しました。'
           setRunning(false)
           setGameOver(true)
+          setGameOverReason(accidentReason)
+          setGameOverAdvice('次回は列車同士の間隔が詰まりすぎる前に、抑止や転線で進路を分散させましょう。')
           setScore(0)
           setMessage(
-            '列車事故発生。防護無線発報中。全列車の運転を停止します。',
+            `列車事故発生。${accidentReason}防護無線発報中。全列車の運転を停止します。`,
           )
           addEvent(`${formattedTime} 列車事故発生: 安全リスク13到達`)
         } else if (nextTotalDelay <= 0) {
@@ -1540,72 +1695,55 @@ export default function App() {
     }
   }
 
-  const changeTrack = (id, track) => {
+    const changeTrack = (id, track) => {
     const targetTrain = trains.find((t) => t.id === id)
     const targetTrack = ROUTE_TRACKS.find((t) => t.id === track)
     const trackName = targetTrack?.name ?? '不明な線路'
-    if ((targetTrain?.dwellRemaining ?? 0) > 0 || (targetTrain?.turnbackRemaining ?? 0) > 0) {
-      const warning = `${id}は停車中または折返し準備中のため、進路を構成できません。発車後に操作してください。`
-      setMessage(warning)
-      setOperationWarning(id, warning)
-      addEvent(`${formattedTime} ${id}: 停車中の進路構成を防止`)
-      return
-    }
-    if (
-  targetTrain &&
-  targetTrack &&
-  isTokyoTerminalMainTrack(targetTrack) &&
-  isTokyoTerminalTrackOccupied(targetTrack.id, targetTrain.x, trains, targetTrain.id)
-) {
-  const warning = `${trackName}には東京駅構内ですでに別の列車がいます。東京駅構内では各線に1編成しか入線できません。`
-  setMessage(warning)
-  setOperationWarning(id, warning)
-  addEvent(`${formattedTime} ${id}: 東京駅構内の同一線重複を防止`)
-  return
-}
-
     if (pointsLocked) {
-  const warning = 'ポイント操作中です。転換完了までお待ちください。'
-  setMessage(warning)
-  if (targetTrain) setOperationWarning(id, warning)
-  return
-}
-
-if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
-  const switchList = switchXsForTrack(targetTrack, targetTrain).join(' / ')
-  const warning = switchList
-    ? `${id}は現在、分岐点付近にいません。${trackName}へ転線できる位置は x=${switchList} 付近です。`
-    : `${id}は現在、分岐点付近にいないため、${trackName}へ転線できません。`
-
-  setMessage(warning)
-  setOperationWarning(id, warning)
-  addEvent(`${formattedTime} ${id}: 分岐点外での転線を防止`)
-  return
-}
-
-    if (targetTrain && targetTrack && !canUseTrack(targetTrain, targetTrack)) {
-      const directionLabel = targetTrain.direction === 'up' ? '上り' : '下り'
-      const warning =
-        targetTrain.direction === 'down'
-          ? `${id}は東京発の下り列車です。逆線運転を避けるため、上り本線には進路を構成できません。`
-          : `${id}は${directionLabel}列車です。東京駅構内以外では${trackName}へ進路を構成できません。`
-
+      const warning = 'ポイント操作中です。転換完了までお待ちください。'
       setMessage(warning)
-      setOperationWarning(id, warning)
-      addEvent(`${formattedTime} ${id}: 進路構成警告`)
+      if (targetTrain) setOperationWarning(id, warning)
       return
     }
 
-    if (targetTrack?.id.includes('omiya') && targetTrain) {
-      const nearOmiyaExtraSwitch = [64, 85].some((x) => Math.abs(targetTrain.x - x) <= 18)
+    const hasTokyoTerminalConflict =
+      targetTrainCanUseTokyoTerminalCheck(targetTrain, targetTrack) &&
+      isTokyoTerminalTrackOccupied(targetTrack.id, targetTrain.x, trains, targetTrain.id)
 
-      if (!nearOmiyaExtraSwitch) {
-        const warning = `${id}は大宮以北の分岐点付近にいないため、${trackName}へ進路を構成できません。`
-        setMessage(warning)
-        setOperationWarning(id, warning)
-        addEvent(`${formattedTime} ${id}: 大宮副本線への進路構成不可`)
-        return
-      }
+    if (hasTokyoTerminalConflict && tokyoTerminalConflictMode === 'strict') {
+      const accidentReason = tokyoTerminalConflictMessage(targetTrain, targetTrack)
+      setRunning(false)
+      setGameOver(true)
+      setGameOverReason(accidentReason)
+      setGameOverAdvice('次回は東京駅構内で在線中の番線を確認し、空いている番線へ進路を構成しましょう。')
+      setScore(0)
+      setMessage(`列車事故発生。${accidentReason}防護無線発報中。全列車の運転を停止します。`)
+      setOperationWarning(id, `重大インシデント: ${accidentReason}`)
+      addEvent(`${formattedTime} 列車事故発生: ${accidentReason}`)
+      return
+    }
+
+    const switchConflictTrain = switchConflictTrainOnTargetTrack(targetTrain, targetTrack, trains, targetTrain?.id)
+    if (switchConflictTrain && tokyoTerminalConflictMode === 'strict') {
+      const accidentReason = switchConflictMessage(switchConflictTrain, targetTrack)
+      setRunning(false)
+      setGameOver(true)
+      setGameOverReason(accidentReason)
+      setGameOverAdvice('次回は転線先の列車が分岐器を完全に通過したことを確認してから、後続列車の進路を構成しましょう。')
+      setScore(0)
+      setMessage(`列車事故発生。${accidentReason}防護無線発報中。全列車の運転を停止します。`)
+      setOperationWarning(id, `重大インシデント: ${accidentReason}`)
+      addEvent(`${formattedTime} 列車事故発生: ${accidentReason}`)
+      return
+    }
+
+    const unavailableReason = trackOperationUnavailableReason(targetTrain, targetTrack, trains, tokyoTerminalConflictMode)
+    if (unavailableReason) {
+      const warning = `${id}: ${trackName}を選択できません。${unavailableReason}`
+      setMessage(warning)
+      setOperationWarning(id, warning)
+      addEvent(`${formattedTime} ${id}: 進路ボタン選択不可`)
+      return
     }
 
     setPointsLocked(true)
@@ -1670,7 +1808,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
   }
 
   const resetGame = () => {
-    setTrains(generateInitialTrains())
+    setTrains(generateInitialTrains(tokyoTerminalConflictMode))
     setWaitingTrains(generateWaitingTrains())
     tokyoTurnbacksSinceLastDeadhead = 0
     setSelectedTrainGroup(null)
@@ -1679,15 +1817,15 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     setRunning(false)
     setGameOver(false)
     setGameClear(false)
+    setGameOverReason('列車事故発生。防護無線を発報しました。全列車の運転を停止します。')
+    setGameOverAdvice('次回は列車同士の間隔と進路の重複に注意しながら、早めに抑止や進路変更を行いましょう。')
     setTime(15 * 3600 + 23 * 60)
     setPointsLocked(false)
     setScore(1000)
     setMessage(
       'リセットしました。',
     )
-    setEvents([
-      '指令: 東京・上野・大宮の新幹線上下線に対して列車整理を行い、上下方向の進路競合を避けてください。',
-    ])
+    setEvents([])
   }
 
   const grade =
@@ -1700,6 +1838,22 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
           : score > 220
             ? 'C'
             : 'D'
+
+  const clearEvaluationComments = [
+    totalDelay <= 0
+      ? '表示中の全列車の遅延を回復できました。'
+      : `残り遅延は${totalDelay.toFixed(1)}分でした。`,
+    risk <= 2
+      ? '安全リスクを低く抑えたまま運転整理できました。'
+      : risk <= 6
+        ? '安全リスクを大きく悪化させずに整理できました。'
+        : '安全リスクが高めだったため、抑止や進路整理のタイミングに改善の余地があります。',
+    score >= 760
+      ? '優先や抑止に頼りすぎず、効率よく列車を流せました。'
+      : score >= 420
+        ? '必要な操作を行いながら、一定のスコアを維持できました。'
+        : '操作による減点が大きかったため、次回は安全を保ちつつ操作回数を絞ると評価が上がります。',
+  ]
 
   return (
   <main className="game">
@@ -1798,10 +1952,14 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     {gameOver && (
       <div className="game-over-overlay" role="alert">
         <div className="game-over-card">
-<h2>列車事故発生</h2>
+          <h2>列車事故発生</h2>
           <p>
-            列車事故発生。防護無線を発報しました。全列車の運転を停止します。
+            {gameOverReason}
           </p>
+          <div className="game-over-advice">
+            <strong>次回のポイント</strong>
+            <p>{gameOverAdvice}</p>
+          </div>
           <button className="secondary-button" onClick={resetGame}>
             ↻ リセットして再開
           </button>
@@ -1833,6 +1991,14 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
               <strong>{risk}/13</strong>
             </div>
           </div>
+          <div className="clear-evaluation-comments">
+            <strong>評価ポイント</strong>
+            <ul>
+              {clearEvaluationComments.map((comment) => (
+                <li key={comment}>{comment}</li>
+              ))}
+            </ul>
+          </div>
           <button className="secondary-button" onClick={resetGame}>
             ↻ もう一度プレイ
           </button>
@@ -1841,7 +2007,7 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
     )}
       <header className="game-header">
         <div>
-          <p className="version">JRE Shinkansen Dispatch Simulator v3.0.0a</p>
+          <p className="version">JRE Shinkansen Dispatch Simulator v4.0.0</p>
           <h1>
   <span className="title-main">JR東日本 新幹線</span>
   <span className="title-sub">遅延回復シミュレーター</span>
@@ -1852,20 +2018,68 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
           </p>
         </div>
 
-          <div className="header-tutorial-actions">
-  <button className="tutorial-open-button" type="button" onClick={openTutorial}>
-     遊び方
-  </button>
-  <button className="practice-tutorial-open-button" type="button" onClick={startPracticeTutorial}>
-    チュートリアルを開始
-  </button>
-</div>
+  <div className="header-tutorial-actions">
+    <button className="tutorial-open-button" type="button" onClick={openTutorial}>
+      遊び方
+    </button>
+    <button className="practice-tutorial-open-button" type="button" onClick={startPracticeTutorial}>
+      操作を練習（指令訓練）
+    </button>
+    <button
+      className="difficulty-toggle-button"
+      type="button"
+      onClick={() => setDifficultyMenuOpen(true)}
+    >
+      <span className="difficulty-toggle-main">難易度変更</span>
+    </button>
+  </div>
       </header>
+
+      {difficultyMenuOpen && (
+        <div className="tutorial-overlay" role="dialog" aria-label="難易度変更">
+          <div className="tutorial-card difficulty-menu-card">
+            <div className="tutorial-head">
+              <span>難易度変更</span>
+              <button
+                type="button"
+                aria-label="難易度変更を閉じる"
+                onClick={() => setDifficultyMenuOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="tutorial-body difficulty-menu-body">
+              <strong>プレイするモードを選択してください</strong>
+              <p>現在のモード: {tokyoTerminalConflictModeLabel}</p>
+            </div>
+
+            <div className="difficulty-mode-actions">
+              <button
+                type="button"
+                className={tokyoTerminalConflictMode === 'prevent' ? 'difficulty-mode-button active' : 'difficulty-mode-button'}
+                onClick={() => applyDifficultyMode('prevent')}
+              >
+                <strong>新入り指令員モード</strong>
+                <span>列車本数が少なくなり、落ち着いて操作できます。</span>
+              </button>
+              <button
+                type="button"
+                className={tokyoTerminalConflictMode === 'strict' ? 'difficulty-mode-button active' : 'difficulty-mode-button'}
+                onClick={() => applyDifficultyMode('strict')}
+              >
+                <strong>熟練指令員モード</strong>
+                <span>列車本数が増加し、操作精度が求められます。</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className="stats">
         <div className="stat-card">
-          <span>時刻</span>
-          <strong>{formattedTime}</strong>
+          <span>モード</span>
+          <strong>{tokyoTerminalConflictModeShortLabel}</strong>
         </div>
         <div className="stat-card">
           <span>総遅延</span>
@@ -2085,9 +2299,13 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
       <section className="log-panel">
         <h2>運転整理ログ</h2>
         <div className="logs">
-          {events.map((event, index) => (
-            <p key={`${event}-${index}`}>{event}</p>
-          ))}
+          {events.length === 0 ? (
+            <p className="log-placeholder">操作を行うと、ここに記録されます。</p>
+          ) : (
+            events.map((event, index) => (
+              <p key={`${event}-${index}`}>{event}</p>
+            ))
+          )}
         </div>
       </section>
 
@@ -2189,17 +2407,28 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
                             if (!track) return null
 
                             const isSelectedTrack = train.track === track.id
-                            const canOperateTrack = canOperateTrackButton(train, track, trains)
+                            const canOperateTrack = canOperateTrackButton(train, track, trains, tokyoTerminalConflictMode)
+                            const unavailableReason = trackOperationUnavailableReason(train, track, trains, tokyoTerminalConflictMode)
+                            const isStoppedForOperation = (train.dwellRemaining ?? 0) > 0 || (train.turnbackRemaining ?? 0) > 0
+                            const shouldShowUnavailable = tokyoTerminalConflictMode === 'strict'
+                              ? isStoppedForOperation
+                              : !canOperateTrack
+                            const buttonLabel = operationTrackButtonLabel(track, train)
+                            const buttonTitle = unavailableReason
+                              ? `${buttonLabel}: ${unavailableReason}`
+                              : `${buttonLabel}: 進路を構成できます。`
 
                             return (
                               <button
                                 type="button"
                                 key={track.id}
-                                className={`${isSelectedTrack ? 'selected' : ''} ${!canOperateTrack ? 'unavailable' : ''}`.trim()}
-                                disabled={pointsLocked || !canOperateTrack}
+                                className={`${isSelectedTrack ? 'selected' : ''} ${shouldShowUnavailable ? 'unavailable' : ''}`.trim()}
+                                disabled={pointsLocked}
+                                title={buttonTitle}
+                                aria-label={buttonTitle}
                                 onClick={() => changeTrack(train.id, track.id)}
                               >
-                                {operationTrackButtonLabel(track, train)}
+                                {buttonLabel}
                               </button>
                             )
                           })}
@@ -2288,17 +2517,28 @@ if (!canChangeTrackAtCurrentPosition(targetTrain, targetTrack)) {
                       if (!track) return null
 
                       const isSelectedTrack = train.track === track.id
-                      const canOperateTrack = canOperateTrackButton(train, track, trains)
+                      const canOperateTrack = canOperateTrackButton(train, track, trains, tokyoTerminalConflictMode)
+                      const unavailableReason = trackOperationUnavailableReason(train, track, trains, tokyoTerminalConflictMode)
+                      const isStoppedForOperation = (train.dwellRemaining ?? 0) > 0 || (train.turnbackRemaining ?? 0) > 0
+                      const shouldShowUnavailable = tokyoTerminalConflictMode === 'strict'
+                        ? isStoppedForOperation
+                        : !canOperateTrack
+                      const buttonLabel = operationTrackButtonLabel(track, train)
+                      const buttonTitle = unavailableReason
+                        ? `${buttonLabel}: ${unavailableReason}`
+                        : `${buttonLabel}: 進路を構成できます。`
 
                       return (
                         <button
                           type="button"
                           key={track.id}
-                          className={`${isSelectedTrack ? 'selected' : ''} ${!canOperateTrack ? 'unavailable' : ''}`.trim()}
-                          disabled={pointsLocked || !canOperateTrack}
+                          className={`${isSelectedTrack ? 'selected' : ''} ${shouldShowUnavailable ? 'unavailable' : ''}`.trim()}
+                          disabled={pointsLocked}
+                          title={buttonTitle}
+                          aria-label={buttonTitle}
                           onClick={() => changeTrack(train.id, track.id)}
                         >
-                          {operationTrackButtonLabel(track, train)}
+                          {buttonLabel}
                         </button>
                       )
                     })}

@@ -1758,7 +1758,7 @@ button {
   width: min(100%, 38em);
   margin: 0 auto;
   color: #18181b;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 1.75;
   text-align: center;
@@ -2278,7 +2278,7 @@ button {
     width: min(100%, 28em);
     max-width: 100%;
     margin: 0 auto;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.85;
     text-align: center;
     word-break: keep-all;
@@ -2342,7 +2342,7 @@ button {
 
   .tutorial-body p {
     width: min(100%, 25em);
-    font-size: 11.5px;
+    font-size: 12.5px;
     line-height: 1.85;
   }
 }
@@ -3212,7 +3212,7 @@ body {
   width: min(100%, 42em);
   margin: 6px auto 0;
   color: #3f3f46;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.65;
 }
@@ -3227,10 +3227,26 @@ body {
   min-width: 160px;
 }
 
+
 .train-wrap.practice-target .train {
   outline: 3px solid rgba(31, 95, 70, 0.36);
   outline-offset: 4px;
   box-shadow: 0 0 0 8px rgba(31, 95, 70, 0.12), 0 14px 26px rgba(15, 23, 42, 0.24);
+}
+
+/* 指令訓練中：対象列車以外を少し暗くして、操作対象を見つけやすくする */
+.rail-map:has(.train-wrap.practice-target) .train-wrap:not(.practice-target) .train {
+  filter: brightness(0.58) saturate(0.72);
+  opacity: 0.58;
+}
+
+.rail-map:has(.train-wrap.practice-target) .train-wrap.practice-target {
+  z-index: 60;
+}
+
+.rail-map:has(.train-wrap.practice-target) .train-wrap.practice-target .train {
+  filter: none;
+  opacity: 1;
 }
 
 @media (max-width: 720px) {
@@ -3290,7 +3306,7 @@ body {
   }
 
   .practice-tutorial-guide p {
-    font-size: 11.5px;
+    font-size: 12.5px;
     line-height: 1.65;
   }
 
@@ -3313,7 +3329,144 @@ body {
   backdrop-filter: none;
 }
 
-/* Header tutorial action buttons */
+.pc-train-operation-card:has(.practice-tutorial-guide-in-panel) {
+  max-height: min(92vh, 860px);
+  padding: 14px;
+}
+
+.pc-train-operation-card:has(.practice-tutorial-guide-in-panel) .pc-train-operation-head {
+  min-height: 36px;
+  margin-bottom: 10px;
+}
+
+.pc-train-operation-card:has(.practice-tutorial-guide-in-panel) .pc-train-operation-list {
+  gap: 10px;
+}
+
+.pc-train-operation-card:has(.practice-tutorial-guide-in-panel) .pc-train-operation-item {
+  gap: 10px;
+  padding: 12px;
+}
+
+.pc-train-operation-card:has(.practice-tutorial-guide-in-panel) .pc-operation-train-head {
+  gap: 3px;
+}
+
+.pc-train-operation-card:has(.practice-tutorial-guide-in-panel) .pc-operation-train-head > strong {
+  font-size: 17px;
+}
+
+.pc-train-operation-card:has(.practice-tutorial-guide-in-panel) .pc-operation-train-head > span {
+  font-size: 14px;
+}
+
+.pc-train-operation-card:has(.practice-tutorial-guide-in-panel) .pc-operation-section {
+  gap: 7px;
+}
+
+.pc-train-operation-card:has(.practice-tutorial-guide-in-panel) .pc-track-buttons {
+  gap: 7px;
+}
+
+.pc-train-operation-card:has(.practice-tutorial-guide-in-panel) .pc-track-buttons button {
+  min-height: 36px;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+
+.pc-train-operation-card:has(.practice-tutorial-guide-in-panel) .pc-operation-actions {
+  gap: 8px;
+}
+
+.pc-train-operation-card:has(.practice-tutorial-guide-in-panel) .pc-operation-actions button {
+  min-height: 38px;
+}
+
+.pc-train-operation-card:has(.practice-tutorial-guide-in-panel) .practice-tutorial-guide-in-panel {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+}
+
+.pc-train-operation-card:has(.practice-tutorial-guide-in-panel) .practice-tutorial-guide strong {
+  font-size: 16px;
+}
+
+.pc-train-operation-card:has(.practice-tutorial-guide-in-panel) .practice-tutorial-guide p {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.pc-train-operation-card:has(.practice-tutorial-guide-in-panel) .practice-tutorial-actions {
+  margin-top: 8px;
+}
+
+.pc-train-operation-card:has(.practice-tutorial-guide-in-panel) .practice-tutorial-actions button {
+  min-width: 150px;
+  min-height: 38px;
+}
+
+@media (max-width: 720px) {
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) {
+    max-height: min(88vh, 640px);
+    padding: 10px;
+  }
+
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .mobile-operation-head {
+    min-height: 36px;
+    margin-bottom: 8px;
+  }
+
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .mobile-operation-list li {
+    gap: 9px;
+    padding: 10px;
+  }
+
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .mobile-operation-train-head > strong,
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .mobile-operation-train-head > strong .colored-train-name,
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .mobile-operation-train-head > strong .colored-train-name-part,
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .mobile-operation-train-head > strong .train-name-green,
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .mobile-operation-train-head > strong .train-name-komachi,
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .mobile-operation-train-head > strong .train-name-tsubasa,
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .mobile-operation-train-head > strong .train-name-blue-purple,
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .mobile-operation-train-head > strong .train-name-beige-pink,
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .mobile-operation-train-head > strong .train-name-default,
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .mobile-operation-train-head > strong .train-name-separator {
+    font-size: 21px !important;
+  }
+
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .mobile-track-buttons button {
+    min-height: 36px;
+    padding: 5px 7px;
+    font-size: 12px;
+  }
+
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .mobile-operation-actions button {
+    min-height: 38px;
+  }
+
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .practice-tutorial-guide-in-panel {
+    margin-bottom: 8px;
+    padding: 9px 10px;
+  }
+
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .practice-tutorial-guide strong {
+    font-size: 14px;
+  }
+
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .practice-tutorial-guide p {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .practice-tutorial-actions {
+    margin-top: 7px;
+  }
+
+  .mobile-operation-card:has(.practice-tutorial-guide-in-panel) .practice-tutorial-actions button {
+    min-height: 36px;
+  }
+}
+
 .header-tutorial-actions {
   display: flex;
   align-items: center;
@@ -3325,7 +3478,8 @@ body {
 }
 
 .header-tutorial-actions .tutorial-open-button,
-.header-tutorial-actions .practice-tutorial-open-button {
+.header-tutorial-actions .practice-tutorial-open-button,
+.header-tutorial-actions .difficulty-toggle-button {
   width: 210px;
   min-width: 210px;
   max-width: 210px;
@@ -3336,7 +3490,8 @@ body {
   font-weight: 900;
 }
 
-.practice-tutorial-open-button {
+.practice-tutorial-open-button,
+.difficulty-toggle-button {
   border: 1px solid rgba(31, 95, 70, 0.22);
   border-radius: 999px;
   background:
@@ -3357,7 +3512,9 @@ body {
   -webkit-backdrop-filter: blur(12px) saturate(1.18);
 }
 
-.practice-tutorial-open-button:hover {
+
+.practice-tutorial-open-button:hover,
+.difficulty-toggle-button:hover {
   transform: translateY(-1px);
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(220, 252, 231, 0.72)),
@@ -3381,9 +3538,196 @@ body {
   }
 
   .header-tutorial-actions .tutorial-open-button,
-  .header-tutorial-actions .practice-tutorial-open-button {
+  .header-tutorial-actions .practice-tutorial-open-button,
+  .header-tutorial-actions .difficulty-toggle-button {
     width: min(100%, 280px);
     min-width: 0;
     max-width: 280px;
+  }
+}
+
+.header-tutorial-actions .difficulty-toggle-button {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.difficulty-toggle-main {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+@media (max-width: 720px) {
+  .header-tutorial-actions .difficulty-toggle-button {
+    white-space: nowrap;
+  }
+}
+
+/* Difficulty selection modal */
+.difficulty-menu-card {
+  width: min(92vw, 560px);
+  padding-bottom: 22px;
+}
+
+.difficulty-menu-body {
+  min-height: auto;
+  margin-bottom: 18px;
+  text-align: center;
+}
+
+.difficulty-menu-body strong,
+.difficulty-menu-body p {
+  text-align: center;
+}
+
+.difficulty-mode-actions {
+  display: grid;
+  gap: 12px;
+  width: min(100%, 460px);
+  margin: 20px auto 0;
+}
+
+.difficulty-mode-button {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  min-height: 76px;
+  padding: 14px 18px;
+  border: 1px solid rgba(31, 95, 70, 0.18);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(240, 253, 244, 0.62)),
+    #ffffff;
+  color: #18181b;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.difficulty-mode-button strong {
+  color: #166534;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.difficulty-mode-button span {
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.difficulty-mode-button.active {
+  border-color: rgba(22, 101, 52, 0.46);
+  background:
+    linear-gradient(135deg, rgba(240, 253, 244, 0.96), rgba(220, 252, 231, 0.72)),
+    #ffffff;
+}
+
+.difficulty-mode-button:hover {
+  transform: translateY(-1px);
+  background:
+    linear-gradient(135deg, rgba(240, 253, 244, 0.98), rgba(220, 252, 231, 0.82)),
+    #ffffff;
+}
+
+@media (max-width: 720px) {
+  .difficulty-menu-card {
+    width: min(100%, 380px);
+    padding-bottom: 16px;
+  }
+
+  .difficulty-menu-body {
+    margin-bottom: 16px;
+  }
+
+  .difficulty-mode-actions {
+    gap: 10px;
+    width: 100%;
+    margin-top: 18px;
+  }
+
+  .difficulty-mode-button {
+    min-height: 70px;
+    padding: 12px 14px;
+    border-radius: 16px;
+  }
+
+  .difficulty-mode-button strong {
+    font-size: 14px;
+  }
+
+  .difficulty-mode-button span {
+    font-size: 11.5px;
+  }
+}
+
+.difficulty-menu-card .tutorial-head span {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+@media (max-width: 720px) {
+  .difficulty-menu-card .tutorial-head span {
+    font-size: 17px;
+  }
+}
+
+.game-over-advice {
+  width: min(100%, 34em);
+  margin: 14px auto 22px;
+  padding: 12px 14px;
+  border: 1px solid rgba(127, 29, 29, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  text-align: left;
+}
+
+.game-over-advice strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #7f1d1d;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.game-over-advice p {
+  max-width: none;
+  margin: 0;
+  color: #3f3f46;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.65;
+}
+
+.logs .log-placeholder {
+  grid-column: 1 / -1;
+  color: #71717a;
+  font-weight: 700;
+  text-align: center;
+  background: #f8fafc;
+  border-style: dashed;
+}
+
+@media (max-width: 560px) {
+  .game-over-advice {
+    margin-top: 12px;
+    margin-bottom: 18px;
+    padding: 11px 12px;
+    border-radius: 14px;
+  }
+
+  .game-over-advice strong {
+    font-size: 13px;
+  }
+
+  .game-over-advice p {
+    font-size: 12px;
+    line-height: 1.6;
   }
 }
