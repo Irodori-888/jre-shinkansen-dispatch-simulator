@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
-const UPPER_STATION_AREA_SWITCH_MARKERS = [27.5, 48.8, 66, 86.3]
-const LOWER_STATION_AREA_SWITCH_MARKERS = [27.5, 48.8, 66, 86.3]
+const UPPER_STATION_AREA_SWITCH_MARKERS = [18, 27.5, 48.8, 66, 86.3]
+const LOWER_STATION_AREA_SWITCH_MARKERS = [18, 27.5, 48.8, 66, 86.3]
 const STATION_LABEL_POSITIONS = {
-  ueno: (UPPER_STATION_AREA_SWITCH_MARKERS[0] + UPPER_STATION_AREA_SWITCH_MARKERS[1]) / 2,
-  omiya: (UPPER_STATION_AREA_SWITCH_MARKERS[2] + UPPER_STATION_AREA_SWITCH_MARKERS[3]) / 2,
+  ueno: (UPPER_STATION_AREA_SWITCH_MARKERS[1] + UPPER_STATION_AREA_SWITCH_MARKERS[2]) / 2,
+  omiya: (UPPER_STATION_AREA_SWITCH_MARKERS[3] + UPPER_STATION_AREA_SWITCH_MARKERS[4]) / 2,
 }
 
 const STATIONS = [
@@ -769,6 +769,15 @@ function isFrontBlocked(train, trains) {
     if (other.id === train.id) return false
     if (other.track !== train.track) return false
 
+    if (
+      train.direction === 'up' &&
+      other.direction === 'up' &&
+      isTrainStoppedAtStation(other, 'ueno') &&
+      train.x > other.x
+    ) {
+      return false
+    }
+
     const gap = Math.abs(other.x - train.x)
     if (gap >= 10) return false
 
@@ -799,7 +808,8 @@ function isInTokyoTerminalArea(x) {
   if (!tokyo) return false
 
   const leftEdge = tokyo.x - 4
-  return x >= leftEdge && x <= TOKYO_TERMINAL_LIMIT_X
+  const rightEdge = tokyo.stopX ?? tokyo.x
+  return x >= leftEdge && x <= rightEdge
 }
 function isDownMainTrack(trackOrTrackId) {
   const track = typeof trackOrTrackId === 'string' ? routeTrackById(trackOrTrackId) : trackOrTrackId
@@ -811,11 +821,17 @@ function isInTokyoTerminalAreaForTrack(x, trackOrTrackId) {
   if (!tokyo) return false
 
   const leftEdge = tokyo.x - 4
-  const rightEdge = isDownMainTrack(trackOrTrackId)
-    ? TOKYO_TERMINAL_DOWN_LIMIT_X
-    : TOKYO_TERMINAL_LIMIT_X
+  const rightEdge = tokyo.stopX ?? tokyo.x
 
   return x >= leftEdge && x <= rightEdge
+}
+
+function isTrainStoppedAtStation(train, stationId) {
+  const station = STATIONS.find((item) => item.id === stationId)
+  if (!train || !station) return false
+
+  const stopX = stationStopX(station)
+  return Math.abs(train.x - stopX) < 1 && (train.dwellRemaining ?? 0) > 0
 }
 
 function isTokyoTerminalTrackOccupied(trackId, x, trains, ignoreTrainId = null) {
