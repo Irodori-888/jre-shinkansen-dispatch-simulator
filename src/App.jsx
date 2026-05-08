@@ -434,6 +434,26 @@ function displayTrainName(train) {
   return `${train.type}${train.number ?? ''}`
 }
 
+function shortTrainBoardName(train) {
+  const type = train?.type ?? ''
+  const number = train?.number ?? ''
+
+  if (type.includes('はやぶさ・こまち')) return `H/K${number}`
+  if (type.includes('やまびこ・つばさ')) return `Y/T${number}`
+  if (type.includes('はやぶさ')) return `H${number}`
+  if (type.includes('こまち')) return `K${number}`
+  if (type.includes('やまびこ')) return `Y${number}`
+  if (type.includes('つばさ')) return `T${number}`
+  if (type.includes('なすの')) return `N${number}`
+  if (type.includes('とき')) return `To${number}`
+  if (type.includes('たにがわ')) return `Ta${number}`
+  if (type.includes('かがやき')) return `Ka${number}`
+  if (type.includes('はくたか')) return `Ha${number}`
+  if (type.includes('あさま')) return `A${number}`
+
+  return `${type}${number}`
+}
+
 function trainTypeColorClass(type) {
   if (type.includes('こまち')) return 'train-name-komachi'
   if (type.includes('つばさ')) return 'train-name-tsubasa'
@@ -831,12 +851,8 @@ function isTrainStillClearingSwitch(train, switchX, tolerance = 18) {
   const bodyMinX = Math.min(frontX, rearX)
   const bodyMaxX = Math.max(frontX, rearX)
   const isSwitchBetweenFrontAndRear = switchX >= bodyMinX && switchX <= bodyMaxX
-  const isNearSwitch =
-    Math.abs(train.x - switchX) <= tolerance ||
-    Math.abs(frontX - switchX) <= tolerance ||
-    Math.abs(rearX - switchX) <= tolerance
 
-  return !hasTrainFullyClearedSwitch(train, switchX) && (isSwitchBetweenFrontAndRear || isNearSwitch)
+  return isSwitchBetweenFrontAndRear
 }
 
 function switchConflictTrainOnTargetTrack(train, targetTrack, trains, ignoreTrainId = null) {
@@ -2237,7 +2253,7 @@ export default function App() {
       <div className={`train ${train.colorClass}`}>
         <div className="train-top compact">
           <strong>
-            {displayTrainName(train)} / +{train.delay.toFixed(1)}分 / {trainStatusLabel(train)}
+            {shortTrainBoardName(train)} / +{train.delay.toFixed(1)}分 / {trainStatusLabel(train)}
           </strong>
           {(train.held || train.autoHeld) && <span className="hold-mark">×</span>}
           {!train.held && !train.autoHeld && train.dwellRemaining > 0 && <span>⏸</span>}
