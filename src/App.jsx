@@ -98,14 +98,29 @@ const SWITCH_POINTS = [
 ]
 
 
-const TOKYO_TERMINAL_LIMIT_X = 28
-const TOKYO_TERMINAL_DOWN_LIMIT_X = 28
+const TOKYO_TERMINAL_LIMIT_X = 12
+const TOKYO_TERMINAL_DOWN_LIMIT_X = 12
+const TOKYO_TERMINAL_APPROACH_SWITCH_X = 28
+
+function isAtTokyoTerminalApproachSwitch(train) {
+  if (!train || train.direction !== 'up' || !Number.isFinite(train.x)) return false
+
+  const frontX = trainFrontX(train)
+
+  return (
+    Math.abs(train.x - TOKYO_TERMINAL_APPROACH_SWITCH_X) <= 16 ||
+    Math.abs(frontX - TOKYO_TERMINAL_APPROACH_SWITCH_X) <= 16
+  )
+}
+
+
 
 const INITIAL_TRAIN_COUNT = 12
 const BEGINNER_INITIAL_TRAIN_COUNT = 8
 const WAITING_TRAIN_COUNT = 9
 const EARLY_ADMISSION_AFTER_OMIYA_DEPARTURE_SECONDS = 35
 const TRAIN_SWITCH_ENTRY_OFFSET = 5
+const HOLD_DELAY_PER_SECOND = 1 / 60
 const HOLD_RISK_TRAIN_COUNT = 2
 const LONG_HOLD_RISK_SECONDS = 60
 let tokyoTurnbacksSinceLastDeadhead = 0
@@ -573,6 +588,15 @@ function shouldUseTokyoTerminalTrackLabels(train) {
   )
 }
 
+function shouldShowTokyoTerminalTrackOptions(train) {
+  return Boolean(
+    train &&
+    train.direction === 'up' &&
+    isTokyoTerminalMainTrack(routeTrackById(train.track)) &&
+    (isInTokyoTerminalAreaForTrack(train.x, train.track) || isAtTokyoTerminalApproachSwitch(train)),
+  )
+}
+
 function operationTrackLabel(train) {
   if (shouldUseTokyoTerminalTrackLabels(train)) {
     return tokyoTerminalTrackLabel(train.track) ?? trackLabel(train.track)
@@ -582,7 +606,7 @@ function operationTrackLabel(train) {
 }
 
 function operationTrackButtonLabel(track, train) {
-  if (shouldUseTokyoTerminalTrackLabels(train) && train.direction !== 'down') {
+  if (shouldShowTokyoTerminalTrackOptions(train)) {
     return tokyoTerminalTrackButtonLabel(track.id) ?? track.shortName
   }
 
@@ -820,8 +844,11 @@ function isInTokyoTerminalAreaForTrack(x, trackOrTrackId) {
   const tokyo = STATIONS.find((station) => station.id === 'tokyo')
   if (!tokyo) return false
 
+  const track = typeof trackOrTrackId === 'string' ? routeTrackById(trackOrTrackId) : trackOrTrackId
   const leftEdge = tokyo.x - 4
-  const rightEdge = tokyo.stopX ?? tokyo.x
+  const rightEdge = isDownMainTrack(track)
+    ? TOKYO_TERMINAL_DOWN_LIMIT_X
+    : TOKYO_TERMINAL_LIMIT_X
 
   return x >= leftEdge && x <= rightEdge
 }
@@ -916,7 +943,7 @@ function canUseTrack(train, targetTrack) {
   return (
     train.direction === 'up' &&
     isTokyoTerminalMainTrack(targetTrack) &&
-    isNearTokyoTerminal(train)
+    (isNearTokyoTerminal(train) || isAtTokyoTerminalApproachSwitch(train))
   )
 }
 
@@ -1006,7 +1033,15 @@ function switchXsForTrack(targetTrack, train = null) {
     currentTrack.id !== targetTrack.id
 
   if (isOmiyaSideTrack || (isNearOmiyaArea && isSameDirectionMainlineTransfer)) return [64, 85]
-  if (isTokyoTerminalMainTrack(targetTrack) || isTokyoTerminalMainTrack(currentTrack)) return [28, 50]
+
+  if (isTokyoTerminalMainTrack(targetTrack) || isTokyoTerminalMainTrack(currentTrack)) {
+    if (isAtTokyoTerminalApproachSwitch(train)) {
+      return [TOKYO_TERMINAL_APPROACH_SWITCH_X]
+    }
+
+    return [TOKYO_TERMINAL_APPROACH_SWITCH_X, 50]
+  }
+
   return []
 }
 
@@ -1181,17 +1216,15 @@ function nextTrainState(train, allTrains) {
         ...train,
         autoHeld: true,
         holdSeconds: nextHoldSeconds,
-        delay: Number((ndelay + 0.02).toFixed(1)),
+        delay: Number((ndelay + HOLD_DELAY_PER_SECOND).toFixed(1)),
       }
     }
   }
 
-
-
   if (train.held) {
     return {
       ...train,
-      delay: Number((ndelay + 0.02).toFixed(1)),
+      delay: Number((ndelay + HOLD_DELAY_PER_SECOND).toFixed(1)),
       autoHeld: false,
       holdSeconds: nextHoldSeconds,
     }
@@ -1217,7 +1250,7 @@ function nextTrainState(train, allTrains) {
       ...train,
       autoHeld: true,
       holdSeconds: nextHoldSeconds,
-      delay: Number((ndelay + 0.02).toFixed(1)),
+      delay: Number((ndelay + HOLD_DELAY_PER_SECOND).toFixed(1)),
     }
   }
 
@@ -1240,7 +1273,7 @@ function nextTrainState(train, allTrains) {
         ...train,
         autoHeld: true,
         holdSeconds: nextHoldSeconds,
-        delay: Number((ndelay + 0.02).toFixed(1)),
+        delay: Number((ndelay + HOLD_DELAY_PER_SECOND).toFixed(1)),
       }
     }
 
@@ -1259,7 +1292,7 @@ function nextTrainState(train, allTrains) {
       ...train,
       autoHeld: true,
       holdSeconds: nextHoldSeconds,
-      delay: Number((ndelay + 0.02).toFixed(1)),
+      delay: Number((ndelay + HOLD_DELAY_PER_SECOND).toFixed(1)),
     }
   }
 
@@ -1270,7 +1303,7 @@ function nextTrainState(train, allTrains) {
   }
 
   if (train.direction === 'up' && rawNextX < 0) {
-    if (currentTrack?.direction === 'down') {
+    if (isTokyoTerminalMainTrack(currentTrack)) {
       return turnbackAtTokyo(train, currentTrack)
     }
 
@@ -1278,7 +1311,7 @@ function nextTrainState(train, allTrains) {
       ...train,
       autoHeld: true,
       holdSeconds: nextHoldSeconds,
-      delay: Number((ndelay + 0.02).toFixed(1)),
+      delay: Number((ndelay + HOLD_DELAY_PER_SECOND).toFixed(1)),
     }
   }
 
@@ -1435,48 +1468,21 @@ export default function App() {
   // --- Practice Tutorial Target Helper Section ---
   function practiceTutorialTargetScore(train) {
     if (!train) return -Infinity
-    // Prefer up trains at Omiya, not held, not dwell/turnback, highest delay
-    if (
+
+    const isOmiyaUpMainTrain =
       train.direction === 'up' &&
-      train.x === 75 &&
-      train.track === 'up-main' &&
+      ['up-main', 'up-sub'].includes(train.track) &&
+      train.x >= 62 &&
+      train.x <= 90
+    const isOperable =
       !train.held &&
       !train.autoHeld &&
       (train.dwellRemaining ?? 0) <= 0 &&
       (train.turnbackRemaining ?? 0) <= 0
-    ) {
-      return 10000 + (train.delay ?? 0)
-    }
-    // Up trains at Omiya, not held
-    if (
-      train.direction === 'up' &&
-      train.x === 75 &&
-      train.track === 'up-main' &&
-      !train.held &&
-      !train.autoHeld
-    ) {
-      return 6000 + (train.delay ?? 0)
-    }
-    // Up trains at Omiya
-    if (train.direction === 'up' && train.x === 75 && train.track === 'up-main') {
-      return 4000 + (train.delay ?? 0)
-    }
-    // Up trains not held, not dwell/turnback
-    if (
-      train.direction === 'up' &&
-      !train.held &&
-      !train.autoHeld &&
-      (train.dwellRemaining ?? 0) <= 0 &&
-      (train.turnbackRemaining ?? 0) <= 0
-    ) {
-      return 2000 + (train.delay ?? 0)
-    }
-    // Any up train
-    if (train.direction === 'up') {
-      return 1000 + (train.delay ?? 0)
-    }
-    // Otherwise, deprioritize
-    return -Infinity
+
+    if (!isOmiyaUpMainTrain || !isOperable) return -Infinity
+
+    return (train.delay ?? 0) + (train.track === 'up-main' ? 0.2 : 0)
   }
 
   function findPracticeTutorialTargetTrain(trains) {
@@ -1506,6 +1512,28 @@ export default function App() {
     }
   }
 
+  function scrollRailMapToPracticeTrain(train) {
+    if (!train || typeof window === 'undefined' || typeof document === 'undefined') return
+
+    window.requestAnimationFrame(() => {
+      const railScroll = document.querySelector('.rail-scroll')
+      const railMap = document.querySelector('.rail-map')
+      if (!railScroll || !railMap) return
+
+      const maxScrollLeft = Math.max(0, railMap.scrollWidth - railScroll.clientWidth)
+      const targetScrollLeft = clamp(
+        (train.x / 100) * railMap.scrollWidth - railScroll.clientWidth / 2,
+        0,
+        maxScrollLeft,
+      )
+
+      railScroll.scrollTo({
+        left: targetScrollLeft,
+        behavior: 'smooth',
+      })
+    })
+  }
+
   const startPracticeTutorial = () => {
     const existingTargetTrain = findPracticeTutorialTargetTrain(trains)
     const fallbackTrain = trains
@@ -1520,10 +1548,11 @@ export default function App() {
     }
 
     setPracticeTutorialTrainId(targetTrain?.id ?? null)
+    scrollRailMapToPracticeTrain(targetTrain)
     setPracticeTutorialStep(0)
     setPracticeTutorialPromptOpen(false)
     setPracticeTutorialOpen(true)
-    setMessage('操作チュートリアルを開始します。まずは遅れている列車を選択しましょう。')
+    setMessage('操作チュートリアルを開始します。大宮駅付近の上り本線にいる、マークのついた列車を選択しましょう。')
   }
 
   const skipPracticeTutorial = () => {
@@ -2039,7 +2068,7 @@ export default function App() {
     )}
       <header className="game-header">
         <div>
-          <p className="version">JRE Shinkansen Dispatch Simulator v4.0.0</p>
+          <p className="version">JRE Shinkansen Dispatch Simulator v4.0.1</p>
           <h1>
   <span className="title-main">JR東日本 新幹線</span>
   <span className="title-sub">遅延回復シミュレーター</span>
